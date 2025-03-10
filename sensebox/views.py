@@ -96,7 +96,7 @@ def split_linestring_by_day(features,id):
 
         # Update the last_time
         last_time = current_time
-
+    # shapely.remove_repeated_points(current_segment["coordinates"], tolerance=0)
     # Save the last segment
     if len(current_segment["coordinates"]) > 2:
         daily_segments[last_time.date()].append(current_segment)
@@ -147,13 +147,28 @@ def preprocessing_tracks(request, city):
             # Add each feature to the main feature collection
             feature_collection["features"].extend(feature['features'])
 
-        
-        breakpoint()
-        base_path = '/app/tracks' if os.path.exists('/app') else './tracks'
+        # Define box_ids to remove based on the city
+        if city == "ms":
+            ids_to_remove = {"65451cd043923100076b517c","67828c858e3d6100086a9aa1", "657b28637db43500079d749d", "66aca2c7f5b1680007e89843", "661d00531a903a0008052b78", "67226c2549d0900007c78c78"}
+        elif city == "os":
+            ids_to_remove = {"67529ed438b76600076d6f18"}
+
+        # Convert the feature collection into a GeoDataFrame
+        gdf = gpd.GeoDataFrame.from_features(feature_collection["features"])
+
+        # Ensure 'box_id' exists before filtering
+        if "box_id" in gdf.columns:
+            filtered_gdf = gdf[~gdf["box_id"].isin(ids_to_remove)]
+        else:
+            raise ValueError("box_id column not found in GeoJSON data.")
+            
+        # breakpoint()
+        base_path = '/app/tracks/tracks' if os.path.exists('/app') else './tracks/tracks'
         tracks_path = os.path.join(base_path, f'Processed_tracks_{city}.geojson')
 
-        with open(tracks_path, 'w') as geojson_file:
-            json.dump(feature_collection, geojson_file, indent=2)
+        # with open(tracks_path, 'w') as geojson_file:
+        #     json.dump(feature_collection, geojson_file, indent=2)
+        filtered_gdf.to_file(tracks_path, driver="GeoJSON")
 
         return JsonResponse({"status": "Data processed successfully. Check the tracks folder for the processed data."})
 
@@ -161,75 +176,6 @@ def preprocessing_tracks(request, city):
 
 
    
-def Agg_tracks():
-    data = TracksTable.objects.filter(city = 'ms') 
-    # feature_collection = {"type": "FeatureCollection", "features": []}
-
-    # for items in data:
-    #     track = items.tracks
-    #     id =  items.box   
-    #     # timestamp = items.timestamp
-        
-    #     # if track['geometry']['type'] == 'LineString':
-    #     geojson_feature = create_feature(track, id.box_id)
-        
-    #     if geojson_feature:
-    #         feature_collection['features'].append(geojson_feature)
-    # # print(feature_collection)
-    # breakpoint()
-
-    # base_path = '/app/tracks' if os.path.exists('/app') else './tracks'
-    # tracks_path = os.path.join(base_path, 'Agg_tracks_ms.geojson')
-
-    # # Write feature collection to GeoJSON file
-    # with open(tracks_path, 'w') as geojson_file:
-    #     json.dump(feature_collection, geojson_file, indent=2)
-
-    # Create an output path
-    base_path = '/app/tracks' if os.path.exists('/app') else './tracks'
-    geopackage_path = os.path.join(base_path, 'Agg_tracks_ms.gpkg')
-    
-    # Remove the existing GeoPackage if it exists
-    if os.path.exists(geopackage_path):
-        os.remove(geopackage_path)
-    
-    # Iterate over the tracks in the database
-    for idx, item in enumerate(data, start=1):
-        track = item.tracks
-        box_id = item.box.box_id
-        # breakpoint()
-        # Extract geometry from the track
-        if track.get('geometry', {}).get('type') == 'LineString':
-            coordinates = track['geometry']['coordinates']
-            timestamps = track['properties']['timestamps']
-
-            # Skip invalid LineStrings with no coordinates or less than two points
-            if not coordinates or len(coordinates) < 2:
-                print(f"Skipping invalid track for box_id {box_id} with insufficient coordinates.")
-                continue
-            
-            # Create a Shapely LineString
-            try:
-                geometry = LineString(coordinates)
-            except Exception as e:
-                print(f"Error creating LineString for box_id {box_id}: {e}")
-                continue
-            
-            # Create a GeoDataFrame for this track
-            gdf = gpd.GeoDataFrame(
-                [{'box_id': box_id,
-                  'timestamps': timestamps}],  # Add attributes
-                geometry=[geometry],  # Add geometry
-                crs='EPSG:4326'  # Coordinate Reference System
-            )
-            
-            # Save this track as a new layer in the GeoPackage
-            layer_name = f'track_{idx}_box_{box_id}'
-            gdf.to_file(geopackage_path, layer=layer_name, driver='GPKG')
-    
-    print(f"GeoPackage created: {geopackage_path}")
-
-
 #   657b28637db43500079d749d incorrect
 
 def preprocessing_sensors(request, city):
@@ -282,23 +228,45 @@ def preprocessing_sensors(request, city):
 
     # with open(tracks_path, 'w') as geojson_file:
     #     json.dump(feature_collection, geojson_file, indent=4)
+
     if request.method == 'GET':
         # List of cities and sensor titles to filter
         # cities = ['ms']
-        sensor_titles = [
-            'Finedust PM1', 'Finedust PM10', 'Finedust PM2.5',
-            'Finedust PM4', 'Temperature', 'Rel. Humidity',
-            'Overtaking Distance', 'Surface Anomaly'
-        ]
+        # sensor_titles = [
+        #     'Finedust PM1', 'Finedust PM10', 'Finedust PM2.5',
+        #     'Finedust PM4', 'Temperature', 'Rel. Humidity',
+        #     'Overtaking Distance', 'Surface Anomaly'
+        # ]
+
+        SENSOR_TITLE_MAPPING = {
+            "PM1": "Finedust PM1",
+            "PM10": "Finedust PM10",
+            "PM25": "Finedust PM2.5",
+            "PM4": "Finedust PM4",
+            "Finedust PM1": "Finedust PM1",
+            "Finedust PM10": "Finedust PM10",
+            "Finedust PM2.5": "Finedust PM2.5",
+            "Finedust PM4": "Finedust PM4",
+            "Temperature": "Temperature",
+            "Rel. Humidity": "Rel. Humidity",
+            "Overtaking Distance": "Overtaking Distance",
+            "Surface Anomaly": "Surface Anomaly",
+            "Speed": "Speed",
+            "Geschwindigkeit":"Speed",
+        }
 
         base_path = '/app/tracks/sensor_data' if os.path.exists('/app') else './tracks/sensor_data'
         os.makedirs(base_path, exist_ok=True)  # Ensure the directory exists
 
+        # breakpoint()
         # Iterate over each city and sensor title
         # for city in cities:
-        for sensor_title in sensor_titles:
+        for sensor_title in set(SENSOR_TITLE_MAPPING.values()):
             # Fetch data filtered by city and sensor title
-            sensor_data = SensorDataTable.objects.filter(city=city, sensor_title=sensor_title)
+            mapped_titles = [title for title, mapped_title in SENSOR_TITLE_MAPPING.items() if mapped_title == sensor_title]
+            sensor_data = SensorDataTable.objects.filter(city=city, sensor_title__in=mapped_titles)
+
+            # sensor_data = SensorDataTable.objects.filter(city=city, sensor_title=sensor_title)
             count = sensor_data.count()
             print(f"Number of sensor data for '{sensor_title}' in '{city}': {count}")
             # breakpoint()
@@ -337,14 +305,31 @@ def preprocessing_sensors(request, city):
                                     "box_id": id.box_id
                                 }
                             }
+                            # breakpoint()
                             # Add the feature to the collection and mark it as seen
                             feature_collection["features"].append(feature)
                             seen_features.add(feature_id)
-
+            # breakpoint()
             # Skip writing empty GeoJSON files
-            # if not feature_collection["features"]:
-            #     print(f"No valid data for '{sensor_title}' in '{city}'. Skipping.")
-            #     continue
+            if not feature_collection["features"]:
+                print(f"No valid data for '{sensor_title}' in '{city}'. Skipping.")
+                continue
+
+            # Define box_ids to remove based on the city
+            if city == "ms":
+                ids_to_remove = {"65451cd043923100076b517c","67828c858e3d6100086a9aa1", "657b28637db43500079d749d", "66aca2c7f5b1680007e89843", "661d00531a903a0008052b78", "67226c2549d0900007c78c78"}
+            elif city == "os":
+                ids_to_remove = {"67529ed438b76600076d6f18"}
+
+            # Convert the feature collection into a GeoDataFrame
+            gdf = gpd.GeoDataFrame.from_features(feature_collection["features"])
+
+            # Ensure 'box_id' exists before filtering
+            if "box_id" in gdf.columns:
+                filtered_gdf = gdf[~gdf["box_id"].isin(ids_to_remove)]
+            else:
+                raise ValueError("box_id column not found in GeoJSON data.")
+                
 
             # Generate the GeoJSON file name
             safe_sensor_title = sensor_title.replace(" ", "_").replace(".", "_").replace("/", "_")
@@ -352,93 +337,268 @@ def preprocessing_sensors(request, city):
             tracks_path = os.path.join(base_path, geojson_filename)
 
             # Write the feature collection to a GeoJSON file
-            with open(tracks_path, 'w') as geojson_file:
-                json.dump(feature_collection, geojson_file, indent=4)
+            # with open(tracks_path, 'w') as geojson_file:
+            #     json.dump(feature_collection, geojson_file, indent=4)
+            #     print(f"File created: {tracks_path}")
+            filtered_gdf.to_file(tracks_path, driver="GeoJSON")
 
-    return {"status": "sensor Data processed successfully check the sensor data folder in local for the processed data"}
+    return JsonResponse ({"status": "sensor Data processed successfully check the sensor data folder in local for the processed data"})
 
 
-def bikeability(request):
+# def bikeability(request, city ):
    
-    if request.method == 'GET': 
-        # Load all sensor data
-        sensor_files = [
-            "./tracks/sensor_data/ms_Finedust_PM25.geojson",
+#     if request.method == 'GET': 
+#         # Load all sensor data
+#         sensor_files = [
+#             "./tracks/sensor_data/ms_Finedust_PM2_5.geojson",
+#             "./tracks/sensor_data/ms_Finedust_PM10.geojson",
+#             "./tracks/sensor_data/ms_Finedust_PM4.geojson",
+#             "./tracks/sensor_data/ms_Finedust_PM1.geojson",
+#             "./tracks/sensor_data/ms_Overtaking_Distance.geojson",
+#             "./tracks/sensor_data/ms_Rel__Humidity.geojson",
+#             "./tracks/sensor_data/ms_Surface_Anomaly.geojson",
+#             "./tracks/sensor_data/ms_Temperature.geojson"
+
+#         ]
+
+#         # Assign weights for each pollutant 
+#         weights = {
+#             "ms_Finedust_PM25": 0.111,
+#             "ms_Finedust_PM10": 0.111,
+#             "ms_Finedust_PM4": 0.111,
+#             "ms_Finedust_PM1": 0.111,
+#             "ms_Overtaking_Distance": 0.111,
+#             "ms_Rel_Humidity": 0.111,
+#             "ms_Surface_Anomaly": 0.111,
+#             "ms_Temperature": 0.111
+#         }
+
+#         # Initialize an empty DataFrame to store normalized values for each pollutant
+#         normalized_sensor_data = pd.DataFrame()
+
+#         # Process each sensor file
+#         for file in sensor_files:
+#             # Load GeoJSON file
+#             data = gpd.read_file(file)
+            
+#             # Extract date from timestamp
+#             data["date"] = pd.to_datetime(data["timestamp"]).dt.date
+            
+#             # Normalize the 'value' column within each date and box_id group
+#             data["value_normalized"] = data.groupby(["box_id", "date"])["value"].transform(
+#                 lambda x: (x - x.min()) / (x.max() - x.min()) if len(x) > 1 else x
+#             )
+#             # breakpoint()
+#             # Add the pollutant weight to the data
+#             pollutant_name = file.split("/")[-1].replace(".geojson", "")  # Extract pollutant name (e.g., PM25, PM10)
+#             data["weighted_value"] = data["value_normalized"] * weights[pollutant_name]
+            
+#             # Append to the normalized_sensor_data DataFrame
+#             normalized_sensor_data = pd.concat([normalized_sensor_data, data], ignore_index=True)
+
+#         # breakpoint()
+
+#         # Group sensor data by box_id and date to aggregate weighted values
+#         aggregated_data = normalized_sensor_data.groupby(["box_id", "date"]).agg({
+#             "weighted_value": "sum"  # Sum of weighted normalized values for all pollutants
+#         }).reset_index()
+
+#         # Add a bikeability factor score
+#         aggregated_data.rename(columns={"weighted_value": "factor_score"}, inplace=True)
+
+#         # Normalize factor_score to range [0, 1]
+#         def normalize(series):
+#             return (series - series.min()) / (series.max() - series.min()) if len(series) > 1 else series
+
+#         aggregated_data["factor_score"] = normalize(aggregated_data["factor_score"])
+
+#         # Load the routes GeoJSON file
+#         routes = gpd.read_file('./tracks/Processed_tracks_ms.geojson')
+
+#         # Convert route timestamps to datetime and extract date
+#         routes["date"] = pd.to_datetime(routes["date"]).dt.date
+
+#         # Merge the bikeability factor score with routes based on box_id and date
+#         routes = routes.merge(
+#             aggregated_data,
+#             on=["box_id", "date"],
+#             how="left"
+#         )
+
+#         # Save updated routes to a new GeoJSON file
+#         routes.to_file("./tracks/routes_with_bikeability_datewise.geojson", driver="GeoJSON")
+
+#     return {"status": "BI Analysis successfull, check for routes_with_bikeability_datewise in tracks directory"} 
+
+
+# Define sensor files and weights for each city
+city_data = {
+    "ms": {
+        "sensor_files": [
+            "./tracks/sensor_data/ms_Finedust_PM2_5.geojson",
             "./tracks/sensor_data/ms_Finedust_PM10.geojson",
             "./tracks/sensor_data/ms_Finedust_PM4.geojson",
             "./tracks/sensor_data/ms_Finedust_PM1.geojson",
             "./tracks/sensor_data/ms_Overtaking_Distance.geojson",
-            "./tracks/sensor_data/ms_Rel_Humidity.geojson",
+            "./tracks/sensor_data/ms_Rel__Humidity.geojson",
             "./tracks/sensor_data/ms_Surface_Anomaly.geojson",
-            "./tracks/sensor_data/ms_Temperature.geojson"
+            "./tracks/sensor_data/ms_Temperature.geojson",
+            "./tracks/sensor_data/ms_Speed.geojson",
+        ],
+        "weights": {
+            "ms_Finedust_PM2_5": 0.111,
+            "ms_Finedust_PM10": 0.111,
+            "ms_Finedust_PM4": 0.111,
+            "ms_Finedust_PM1": 0.111,
+            "ms_Overtaking_Distance": 0.111,
+            "ms_Rel__Humidity": 0.111,
+            "ms_Surface_Anomaly": 0.111,
+            "ms_Speed": 0.111,
+            "ms_Temperature": 0.111
+        },
+        "routes_file": "./tracks/tracks/Processed_tracks_ms.geojson",
+    },
+    "os": {
+        "sensor_files": [
+            "./tracks/sensor_data/os_Finedust_PM2_5.geojson",
+            "./tracks/sensor_data/os_Finedust_PM10.geojson",
+            "./tracks/sensor_data/os_Finedust_PM4.geojson",
+            "./tracks/sensor_data/os_Finedust_PM1.geojson",
+            "./tracks/sensor_data/os_Overtaking_Distance.geojson",
+            "./tracks/sensor_data/os_Rel__Humidity.geojson",
+            "./tracks/sensor_data/os_Surface_Anomaly.geojson",
+            "./tracks/sensor_data/os_Temperature.geojson",
+            "./tracks/sensor_data/os_Speed.geojson",
+        ],
+        "weights": {
+            "os_Finedust_PM2_5": 0.111,
+            "os_Finedust_PM10": 0.111,
+            "os_Finedust_PM4": 0.111,
+            "os_Finedust_PM1": 0.111,
+            "os_Overtaking_Distance": 0.111,
+            "os_Rel__Humidity": 0.111,
+            "os_Surface_Anomaly": 0.111,
+            "os_Speed": 0.111,
+            "os_Temperature": 0.111
+            # "extracted_traffic_data_os":0.111,
+        },
+        "routes_file": "./tracks/tracks/Processed_tracks_os.geojson",
+    }
+}
 
-        ]
+def bikeability1(request, city):
+    if request.method != 'GET':
+        return {"status": "Invalid request method"}
+    
+    # Get city-specific sensor data, weights, and route file
+    city_info = city_data.get(city)
+    if not city_info:
+        return {"status": f"City '{city}' not found in dataset"}
 
-        # Assign weights for each pollutant 
-        weights = {
-            "ms_Finedust_PM25": 0.125,
-            "ms_Finedust_PM10": 0.125,
-            "ms_Finedust_PM4": 0.125,
-            "ms_Finedust_PM1": 0.125,
-            "ms_Overtaking_Distance": 0.125,
-            "ms_Rel_Humidity": 0.125,
-            "ms_Surface_Anomaly": 0.125,
-            "ms_Temperature": 0.125
-        }
+    sensor_files = city_info["sensor_files"]
+    weights = city_info["weights"]
+    routes_file = city_info["routes_file"]
 
-        # Initialize an empty DataFrame to store normalized values for each pollutant
-        normalized_sensor_data = pd.DataFrame()
+    # Initialize an empty DataFrame to store normalized values for each pollutant
+    normalized_sensor_data = pd.DataFrame()
 
-        # Process each sensor file
-        for file in sensor_files:
-            # Load GeoJSON file
+    # Process each sensor file
+    for file in sensor_files:
+        try:
             data = gpd.read_file(file)
-            
-            # Extract date from timestamp
-            data["date"] = pd.to_datetime(data["timestamp"]).dt.date
-            
-            # Normalize the 'value' column within each date and box_id group
-            data["value_normalized"] = data.groupby(["box_id", "date"])["value"].transform(
-                lambda x: (x - x.min()) / (x.max() - x.min()) if len(x) > 1 else x
-            )
-            # breakpoint()
-            # Add the pollutant weight to the data
-            pollutant_name = file.split("/")[-1].replace(".geojson", "")  # Extract pollutant name (e.g., PM25, PM10)
-            data["weighted_value"] = data["value_normalized"] * weights[pollutant_name]
-            
-            # Append to the normalized_sensor_data DataFrame
-            normalized_sensor_data = pd.concat([normalized_sensor_data, data], ignore_index=True)
+        except Exception as e:
+            return  JsonResponse({"status": f"Error reading {file}: {e}"})
 
-        # breakpoint()
+        # Extract date from timestamp
+        data["date"] = pd.to_datetime(data["timestamp"]).dt.date
+        data["month"] = pd.to_datetime(data["timestamp"]).dt.month
 
-        # Group sensor data by box_id and date to aggregate weighted values
-        aggregated_data = normalized_sensor_data.groupby(["box_id", "date"]).agg({
-            "weighted_value": "sum"  # Sum of weighted normalized values for all pollutants
-        }).reset_index()
-
-        # Add a bikeability factor score
-        aggregated_data.rename(columns={"weighted_value": "factor_score"}, inplace=True)
-
-        # Normalize factor_score to range [0, 1]
-        def normalize(series):
-            return (series - series.min()) / (series.max() - series.min()) if len(series) > 1 else series
-
-        aggregated_data["factor_score"] = normalize(aggregated_data["factor_score"])
-
-        # Load the routes GeoJSON file
-        routes = gpd.read_file('./tracks/Processed_tracks_ms.geojson')
-
-        # Convert route timestamps to datetime and extract date
-        routes["date"] = pd.to_datetime(routes["date"]).dt.date
-
-        # Merge the bikeability factor score with routes based on box_id and date
-        routes = routes.merge(
-            aggregated_data,
-            on=["box_id", "date"],
-            how="left"
+        # Filter for October, November, and December
+        data = data[data["month"].isin([10, 11, 12])]
+        
+        # Normalize the 'value' column within each date and box_id group
+        data["value_normalized"] = data.groupby(["box_id", "date"])["value"].transform(
+            lambda x: (x - x.min()) / (x.max() - x.min()) if len(x) > 1 else x
         )
 
-        # Save updated routes to a new GeoJSON file
-        routes.to_file("./tracks/routes_with_bikeability_datewise.geojson", driver="GeoJSON")
+        # Extract pollutant name from filename
+        pollutant_name = file.split("/")[-1].replace(".geojson", "")
 
-    return {"status": "BI Analysis successfull, check for routes_with_bikeability_datewise in tracks directory"} 
+        # Check if the pollutant exists in weights
+        if pollutant_name in weights:
+            data["weighted_value"] = data["value_normalized"] * weights[pollutant_name]
+        else:
+            return JsonResponse ({"status": f"Weight not found for {pollutant_name}"})
+
+        # Append to the normalized_sensor_data DataFrame
+        normalized_sensor_data = pd.concat([normalized_sensor_data, data], ignore_index=True)
+    
+    # Group sensor data by box_id and date to aggregate weighted values
+    aggregated_data = normalized_sensor_data.groupby(["box_id", "date"]).agg({
+        "weighted_value": "sum"   # simple additive model
+    }).reset_index()
+
+    # aggregated_data = normalized_sensor_data.groupby(["box_id", "date"]).agg({
+    #     "weighted_value": lambda x: x.prod()  # Multiplicative model
+    # }).reset_index()
+
+    # aggregated_data["factor_score_additive"] = aggregated_data["weighted_value"].sum()
+    # aggregated_data["factor_score_multiplicative"] = (aggregated_data["weighted_value"] + 1).prod()
+
+    
+    # Normalize factor_score to range [0, 1]
+    def normalize(series):
+        return 1 - ((series - series.min()) / (series.max() - series.min())) if len(series) > 1 else series
+
+    # 0 → worst bikeability
+    # 1 → best bikeability
+    aggregated_data["factor_score"] = normalize(aggregated_data["weighted_value"])
+    
+    # Load the routes GeoJSON file
+    try:
+        routes = gpd.read_file(routes_file)
+    except Exception as e:
+        return JsonResponse ({"status": f"Error reading routes file: {e}"})
+
+    # Convert route timestamps to datetime and extract date
+    routes["date"] = pd.to_datetime(routes["date"]).dt.date
+    routes["month"] = pd.to_datetime(routes["date"]).dt.month
+
+    # Filter routes data for October, November, and December
+    routes = routes[routes["month"].isin([10, 11, 12])]
+
+    # Merge the bikeability factor score with routes based on box_id and date
+    routes = routes.merge(
+        aggregated_data,
+        on=["box_id", "date"],
+        how="left"
+    )
+    # Assign a unique number to each box_id
+    box_id_mapping = {box: idx + 1 for idx, box in enumerate(routes["box_id"].unique())}
+    routes["box_id_number"] = routes["box_id"].map(box_id_mapping)
+    # breakpoint()
+    # Save updated routes to a new GeoJSON file
+    output_file = f"./tracks/BI/routes_with_bikeability_{city}.geojson"
+    routes.to_file(output_file, driver="GeoJSON")
+    
+    routes["date"] = routes["date"].astype(str)
+    # Convert GeoDataFrame to JSON string
+    routes_json_str = routes.to_json()
+    # Convert JSON string to dictionary
+    routes_json_dict = json.loads(routes_json_str)
+
+    return JsonResponse (routes_json_dict, safe=False)
+    # return JsonResponse ({"status": f"BI Analysis successful, check for {output_file} in tracks directory"})
+
+
+def bikeability(request, city):
+    if request.method != 'GET':
+        return {"status": "Invalid request method"}
+    
+    file_path = f"./tracks/BI/routes_with_bikeability_{city}.geojson"
+    try:
+        with open(file_path, "r") as geojson_file:
+            routes = json.load(geojson_file)  # Correct way to read a JSON file
+        return JsonResponse(routes, safe=False)  # `safe=False` allows lists to be returned
+    except FileNotFoundError:
+        return JsonResponse({"error": "GeoJSON file not found"}, status=404)
