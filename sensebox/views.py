@@ -84,11 +84,11 @@ def create_feature(track_data, box_id):
 def split_linestring_by_day(features,id):
     # Prepare a collection for the split features
     # split_features = []
-    
+
     # for feature in features:
     coordinates = features["geometry"]["coordinates"]
     timestamps = features["properties"]["timestamps"]
-    
+
     # Define the time gap threshold
     time_gap_threshold = timedelta(minutes=5)  # Example: 1 hour
 
@@ -144,17 +144,17 @@ def split_linestring_by_day(features,id):
             }
             feature_collection["features"].append(feature)
 
-    
+
     # Create a new FeatureCollection
     return feature_collection
 
 
 def preprocessing_tracks(city):
-    # if request.method == 'GET': 
+    # if request.method == 'GET':
     data = TracksTable.objects.filter(city = city)
     count = data.count()
     print(f"Number of tracks for {city}: {count}")
-    
+
     # Create a single FeatureCollection with features grouped by day
     feature_collection = {
         "type": "FeatureCollection",
@@ -184,7 +184,7 @@ def preprocessing_tracks(city):
         filtered_gdf = gdf[~gdf["box_id"].isin(ids_to_remove)]
     else:
         raise ValueError("box_id column not found in GeoJSON data.")
-        
+
     # breakpoint()
     base_path = '/app/tracks/tracks' if os.path.exists('/app') else './tracks/tracks'
     # Create the directory if it doesn't exist
@@ -201,7 +201,7 @@ def preprocessing_tracks(city):
     # return JsonResponse({"error": "Invalid HTTP method. Only GET is allowed."}, status=405)
 
 
-   
+
 #   657b28637db43500079d749d incorrect
 
 def preprocessing_sensors(city):
@@ -297,7 +297,7 @@ def preprocessing_sensors(city):
             filtered_gdf = gdf[~gdf["box_id"].isin(ids_to_remove)]
         else:
             raise ValueError("box_id column not found in GeoJSON data.")
-            
+
 
         # Generate the GeoJSON file name
         safe_sensor_title = sensor_title.replace(" ", "_").replace(".", "_").replace("/", "_")
@@ -366,7 +366,7 @@ city_data = {
 }
 
 def bikeability_trackwise(city):
-    
+
     # Get city-specific sensor data, weights, and route file
     city_info = city_data.get(city)
     if not city_info:
@@ -392,7 +392,7 @@ def bikeability_trackwise(city):
 
         # Filter for October, November, and December
         data = data[data["month"].isin([10, 11, 12])]
-        
+
         # Normalize the 'value' column within each date and box_id group
         data["value_normalized"] = data.groupby(["box_id", "date"])["value"].transform(
             lambda x: (x - x.min()) / (x.max() - x.min()) if len(x) > 1 else x
@@ -409,7 +409,7 @@ def bikeability_trackwise(city):
 
         # Append to the normalized_sensor_data DataFrame
         normalized_sensor_data = pd.concat([normalized_sensor_data, data], ignore_index=True)
-    
+
     # Group sensor data by box_id and date to aggregate weighted values
     aggregated_data = normalized_sensor_data.groupby(["box_id", "date"]).agg({
         "weighted_value": "sum"   # simple additive model
@@ -422,7 +422,7 @@ def bikeability_trackwise(city):
     # aggregated_data["factor_score_additive"] = aggregated_data["weighted_value"].sum()
     # aggregated_data["factor_score_multiplicative"] = (aggregated_data["weighted_value"] + 1).prod()
 
-    
+
     # Normalize factor_score to range [0, 1]
     def normalize(series):
         return 1 - ((series - series.min()) / (series.max() - series.min())) if len(series) > 1 else series
@@ -430,7 +430,7 @@ def bikeability_trackwise(city):
     # 0 → worst bikeability
     # 1 → best bikeability
     aggregated_data["factor_score"] = normalize(aggregated_data["weighted_value"])
-    
+
     # Load the routes GeoJSON file
     try:
         routes = gpd.read_file(routes_file)
@@ -460,7 +460,7 @@ def bikeability_trackwise(city):
     output_path = os.path.join(base_path, output_file)
 
     routes.to_file(output_path, driver="GeoJSON")
-    
+
     routes["date"] = routes["date"].astype(str)
     # Convert GeoDataFrame to JSON string
     routes_json_str = routes.to_json()
@@ -474,19 +474,20 @@ def bikeability_trackwise(city):
 def bikeability(request, city):
     if request.method != 'GET':
         return {"status": "Invalid request method"}
-    
+
     file_path = f"./tracks/BI/routes_with_bikeability_{city}.geojson"
     try:
         with open(file_path, "r") as geojson_file:
             routes = json.load(geojson_file)  # Correct way to read a JSON file
         return JsonResponse(routes, safe=False)  # `safe=False` allows lists to be returned
     except FileNotFoundError:
-        return JsonResponse({"error": "GeoJSON file not found"}, status=404)
+        return bikeability_trackwise(city)
+        #return JsonResponse({"error": "GeoJSON file not found"}, status=404)
 
 def anonymization(request, city):
     if request.method != 'GET':
         return {"status": "Invalid request method"}
-    
+
     file_path = f"./tracks/anonymization/res_{city}.geojson"
     try:
         with open(file_path, "r") as geojson_file:
@@ -499,15 +500,15 @@ def anonymization(request, city):
 def snap_to_nearest_line(point, streets, street_index):
     # ref:https://medium.com/data-science/connecting-pois-to-a-road-network-358a81447944
     """Finds the nearest point on the closest street line using STRtree + distance refinement."""
-    
+
     nearest_idx = street_index.nearest(point)  # This might return an index, not a geometry!
-    
+
     # Ensure we fetch the actual geometry using the index
     if isinstance(nearest_idx, np.int64):  # If it's an index, get the geometry
         possible_nearest_geom = streets.iloc[nearest_idx].geometry
     else:
         possible_nearest_geom = nearest_idx  # If it's already a geometry, use it
-    
+
     # Validate the geometry
     if possible_nearest_geom is None or possible_nearest_geom.is_empty:
         return point  # Return original if invalid
@@ -528,7 +529,7 @@ def process_sensor_file(sensor_file, streets, street_index):
     Loads sensor points, snaps them to streets, and aggregates sensor values.
     """
     print(f"Processing {sensor_file}...")
-    sensor_name = sensor_file.split("/")[-1].replace(".geojson", "") 
+    sensor_name = sensor_file.split("/")[-1].replace(".geojson", "")
 
     # Load points
     points = gpd.read_file(sensor_file).to_crs(streets.crs)
@@ -592,7 +593,7 @@ def process_sensor_file(sensor_file, streets, street_index):
     # breakpoint()
     #  Save snapped points for debugging
     # points.to_file(f"./snapped/snapped_{sensor_name}.geojson", driver="GeoJSON")
-    
+
     # Spatial join (buffer method for street matching)
     buffer_size = 1  # Adjust as needed
     streets["buffered_geom"] = streets.geometry.buffer(buffer_size)
@@ -618,7 +619,7 @@ def process_city(city):
     """
     if city not in city_data:
         raise ValueError(f"City '{city}' not found in city_data dictionary!")
-    
+
     city_info = city_data[city]
     sensor_files = city_info["sensor_files"]
 
@@ -630,7 +631,7 @@ def process_city(city):
     if "geometry" not in streets.columns:
         raise ValueError("The loaded GeoJSON does not contain a 'geometry' column.")
 
-    streets = streets[streets.geometry.notnull()]  
+    streets = streets[streets.geometry.notnull()]
 
     # Build STRtree index for fast nearest street lookup
     street_index = STRtree(streets.geometry.values)
@@ -644,7 +645,7 @@ def process_city(city):
         "id", "@id", "cycleway", "description:name", "lanes", "maxspeed",
         "sidewalk", "surface", "geometry"
     ]
-    
+
     # Add aggregated sensor columns
     for sensor_file in city_data[city]["sensor_files"]:
         sensor_name = os.path.basename(sensor_file).replace(".geojson", "")
@@ -664,7 +665,7 @@ def process_city(city):
 
 def normalize(series, invert=False):
     """Normalize values to range [0, 1].
-    
+
     If `invert=True`, inverts the scale so that lower values are better (bikeability).
     """
     if len(series) <= 1:
@@ -690,17 +691,17 @@ def calculate_bikeability(city):
         return None
 
     streets_subset = streets[existing_columns]
-    
+
     # Identify rows where all sensor values are missing
     all_null_rows = streets_subset.isnull().all(axis=1)
-    
+
     # Fill missing values for rows where at least one sensor value exists
     for sensor in existing_columns:
         mean_value = streets[sensor].mean(skipna=True)  # Compute mean excluding NaNs
         # streets.loc[~all_null_rows & streets[sensor].isnull(), sensor] = mean_value
         streets.loc[~all_null_rows & streets[sensor].isnull(), sensor] = 0
 
-    
+
     # Normalize relevant columns
     for sensor_name in weights.keys():
         if 'avg_'+ sensor_name in streets.columns:
