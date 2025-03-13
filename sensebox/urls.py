@@ -7,4 +7,5 @@ urlpatterns = [
     path('tracks/<str:city>/', views.preprocessing_tracks, name='preprocessing_tracks'),
     path('sensordata/<str:city>/', views.preprocessing_sensors, name='preprocessing_sensors'),
     path('bikeability-index/<str:city>/', views.bikeability, name='bikeability'),
+    path('anonymization/<str:city>/', views.anonymization, name='anonymization'),
 ]
