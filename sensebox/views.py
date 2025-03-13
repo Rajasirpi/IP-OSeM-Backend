@@ -606,7 +606,8 @@ def bikeability(request, city):
             routes = json.load(geojson_file)  # Correct way to read a JSON file
         return JsonResponse(routes, safe=False)  # `safe=False` allows lists to be returned
     except FileNotFoundError:
-        return JsonResponse({"error": "GeoJSON file not found"}, status=404)
+        return bikeability1(request, city)        
+        #return JsonResponse({"error": "GeoJSON file not found"}, status=404)
 
 def anonymization(request, city):
     if request.method != 'GET':
