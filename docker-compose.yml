@@ -3,14 +3,16 @@ version: '3.7'
 services:
   web:
     image: osem-data-fetcher:latest
-    command:  bash -c "service cron start && python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    command:  bash -c "service cron start && python manage.py makemigrations && python manage.py migrate && python manage.py createsuperuser --noinput && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./:/app
     ports:
       - "8000:8000"
     environment:
       - DJANGO_SETTINGS_MODULE=opensensemap_backend.settings
+      - DJANGO_SUPERUSER_PASSWORD=admin
+      - DJANGO_SUPERUSER_USERNAME=admin
+      - DJANGO_SUPERUSER_EMAIL=admin@admin.com
     restart: always
     stdin_open: true
     tty: true
-    

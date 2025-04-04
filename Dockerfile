@@ -35,6 +35,6 @@ RUN crontab /etc/cron.d/fetch_bike_data
 RUN touch /var/log/cron.log
 
 # # Run cron in the foreground
+#
 # CMD ["cron", "-f"]
 CMD ["/bin/bash", "-c", "/usr/local/bin/python /app/manage.py fetch_bike_data ms && /usr/local/bin/python /app/manage.py fetch_bike_data os && cron -f"]
-
