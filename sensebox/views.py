@@ -815,7 +815,7 @@ def calculate_bikeability(city,  weights=None):
         else:
             print(f"Warning: {sensor_name} column missing in streets data.")
 
-    breakpoint()
+    # breakpoint()
     # Compute weighted sum for bikeability index
     streets["bikeability_index"] = sum(
         streets[sensor + "_normalized"] * weight
