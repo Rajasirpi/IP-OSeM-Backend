@@ -1,11 +1,13 @@
-version: '3.7'
+# version: '3.7'
 
 services:
   web:
     image: osem-data-fetcher:latest
+    # command: bash /app/startup.sh
     command:  bash -c "service cron start && python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    # command: bash -c "python manage.py fetch_bike_data ms && python manage.py fetch_bike_data os && python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     volumes:
-      - ./:/app
+      - ./opensensemap_backend:/app
     ports:
       - "8000:8000"
     environment:

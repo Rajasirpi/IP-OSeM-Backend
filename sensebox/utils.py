@@ -4,6 +4,7 @@ import json
 import os
 from django.db.models import Count
 from django.db import transaction
+from django.db import connection 
 import asyncio
 import aiohttp
 from asgiref.sync import sync_to_async
@@ -406,10 +407,9 @@ async def fetch_and_store_data(city):
                 feature_collection['features'].append(feature)
 
         await asyncio.gather(*(fetch_measurements(entry) for entry in id_list))
-        print('success')
+        print('Measurement fetch complete.')
         # breakpoint()
         
-
         # Bulk create Box and Sensor instances asynchronously
         if boxes:
             await sync_to_async(BoxTable.objects.bulk_create)(
@@ -436,6 +436,9 @@ async def fetch_and_store_data(city):
                 track_data,
                 ignore_conflicts=True
             )
+        # Allow DB to "cool down" before further operations
+        # await asyncio.sleep(10)
+        # connection.close()
     # breakpoint()
     
     # # Write feature collection to GeoJSON file

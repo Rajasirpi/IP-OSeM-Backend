@@ -4,7 +4,7 @@ from .models import BoxTable, SensorTable, SensorDataTable, TracksTable
 @admin.register(BoxTable)
 class BoxTableAdmin(admin.ModelAdmin):
     list_display = ('box_id', 'name', 'updated_at', 'city', 'coordinates')
-    search_fields = ('box_id__name', 'city')
+    search_fields = ('box_id','name', 'city')
 
 @admin.register(SensorTable)
 class SensorTableAdmin(admin.ModelAdmin):
