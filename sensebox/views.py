@@ -711,8 +711,8 @@ def osm_segements_bikeability_index_view(request, city):
     # Default weights in case they are not provided in the request
     default_weights = {
         "safety": 0.222,  # Corresponds to Safety
-        "infrastructure": 0.111,  # Corresponds to Infrastructure
-        "environment": 0.666  # Corresponds to Environment
+        "infrastructure_quality": 0.111,  # Corresponds to Infrastructure
+        "environment_quality": 0.666  # Corresponds to Environment
     }
 
     if request.method == 'POST':
@@ -726,7 +726,7 @@ def osm_segements_bikeability_index_view(request, city):
             
             # Expand weights to sensor level
             weights = expand_weights(weights)
-            print(weights)
+            # print(weights)
             
             # Calculate bikeability index using the provided or default weights
             response_data = calculate_bikeability(city, weights)
@@ -781,9 +781,9 @@ def calculate_bikeability(city,  weights=None):
     streets = gpd.read_file(process_file).to_crs(epsg=32637)
     # if all(k in ["Safety", "Infrastructure Quality", "Environment Quality"] for k in weights.keys()):
     
-    weight = expand_weights(weights)
+    # weight = expand_weights(weights)
     
-    sensor_columns = [f"avg_{city}_{sensor}" for sensor in weight.keys()]
+    sensor_columns = [f"avg_{city}_{sensor}" for sensor in weights.keys()]
     existing_columns = [col for col in sensor_columns if col in streets.columns]  # Ensure only existing columns are used
 
     # print("Expected columns:", sensor_columns)
@@ -807,7 +807,7 @@ def calculate_bikeability(city,  weights=None):
 
     
     # Normalize relevant columns
-    for sensor_name in weight.keys():
+    for sensor_name in weights.keys():
         if f'avg_{city}_'+ sensor_name in streets.columns:
             # breakpoint()
             streets[sensor_name + "_normalized"] = normalize(streets[f'avg_{city}_'+ sensor_name],invert=False)
@@ -819,7 +819,7 @@ def calculate_bikeability(city,  weights=None):
     # Compute weighted sum for bikeability index
     streets["bikeability_index"] = sum(
         streets[sensor + "_normalized"] * weight
-        for sensor, weight in weight.items() if sensor + "_normalized" in streets
+        for sensor, weight in weights.items() if sensor + "_normalized" in streets
     )
 
     # Set bikeability_index to NaN for rows where all sensor values were missing
