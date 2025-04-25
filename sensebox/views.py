@@ -737,7 +737,7 @@ def osm_segements_bikeability_index_view(request, city):
         response_data = calculate_bikeability(city, weights)
     
     # Return the final response
-    return JsonResponse(response_data, safe=False)
+    return response_data
 
 
 def normalize(series, invert=False):
