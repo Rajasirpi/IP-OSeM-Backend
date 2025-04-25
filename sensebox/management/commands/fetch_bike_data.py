@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from sensebox.utils import fetch_and_store_data
-from sensebox.views import preprocessing_tracks, preprocessing_sensors, bikeability_trackwise, calculate_bikeability, osm_segements_bikeability_index_view
+from sensebox.views import preprocessing_tracks, preprocessing_sensors, bikeability_trackwise, calculate_bikeability, expand_weights
 from sensebox.snapping_algorithm import process_city
 from datetime import datetime
 import asyncio
@@ -49,7 +49,8 @@ class Command(BaseCommand):
                 bikeability_trackwise(city)
                 process_city(city) 
                 time.sleep(5)
-                calculate_bikeability(city, weights)
+                weight = expand_weights(weights)
+                calculate_bikeability(city, weight)
                 # osm_segements_bikeability_index_view(city, weights)
                 break  # Success, exit loop
 

@@ -733,7 +733,8 @@ def osm_segements_bikeability_index_view(request, city):
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
     else:  # For GET requests, use default weights
-        weights = default_weights
+        weight = default_weights
+        weights = expand_weights(weight)
         response_data = calculate_bikeability(city, weights)
     
     # Return the final response
