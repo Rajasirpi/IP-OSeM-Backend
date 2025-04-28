@@ -846,9 +846,10 @@ def calculate_bikeability(city,  weights=None):
 
     # Save the final result
     # output_file = f"bikeability_{city}_winter_zeros_changed_weights.geojson"
-    streets.to_file(output_path, driver="GeoJSON")
+    streets_4326 = streets.to_crs(epsg=4326)
+    streets_4326.to_file(output_path, driver="GeoJSON")
     print(f"Bikeability index saved to {output_file}")
-    geojson_str = streets.to_json()
+    geojson_str = streets_4326.to_json()
     geojson_dict = json.loads(geojson_str)
 
     # return JsonResponse ({ "message": f"OSM_BI Analysis successful, check for {output_file} in the  BI folder in tracks directory"})
