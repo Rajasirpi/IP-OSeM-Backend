@@ -718,8 +718,8 @@ def osm_segements_bikeability_index_view(request, city):
     if request.method == 'POST':
         try:
             # Parse JSON body to get weights
-            body = json.loads(request.body)
-            weights = body.get("weights", {})
+            weights = json.loads(request.body)
+            # weights = body.get("weights", {})
             if not weights:
                 # If no weights are provided, use default weights
                 weights = default_weights
