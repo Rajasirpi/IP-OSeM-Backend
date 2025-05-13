@@ -663,12 +663,12 @@ def anonymization(request, city):
 
 
 
-def normalize_weights(category_weights):
-    total = sum(category_weights.values())
-    if total == 0:
-        raise ValueError("At least one category weight must be greater than 0.")
+# def normalize_weights(category_weights):
+#     total = sum(category_weights.values())
+#     if total == 0:
+#         raise ValueError("At least one category weight must be greater than 0.")
     
-    return {k: v / total for k, v in category_weights.items()}
+#     return {k: v / total for k, v in category_weights.items()}
 
 
 def expand_weights(category_weights):
@@ -769,7 +769,7 @@ def calculate_bikeability(city,  weights=None):
     #         "ms_Temperature": 0.111
     #     },
     # }
-    city_info = city_data[city]
+    # city_info = city_data[city]
 
     # If weights not passed, use default from city_data
     # if weights is None:
@@ -779,7 +779,8 @@ def calculate_bikeability(city,  weights=None):
     # breakpoint()
     print('Calculates bikeability index for streets using existing processed data')
     # Load the pre-processed streets file (already has average sensor values)
-    streets = gpd.read_file(process_file).to_crs(epsg=32637)
+    # streets = gpd.read_file(process_file).to_crs(epsg=32637)
+    streets = gpd.read_file(process_file)
     # if all(k in ["Safety", "Infrastructure Quality", "Environment Quality"] for k in weights.keys()):
     
     # weight = expand_weights(weights)
@@ -843,9 +844,11 @@ def calculate_bikeability(city,  weights=None):
     # Save updated routes to a new GeoJSON file
     output_file = f"osm_BI_{city}.geojson"
     output_path = os.path.join(base_path, output_file)
-
+    if os.path.exists(output_path):
+        os.remove(output_path)
     # Save the final result
     # output_file = f"bikeability_{city}_winter_zeros_changed_weights.geojson"
+    # streets = streets.dropna(subset=["bikeability_index"])
     streets_4326 = streets.to_crs(epsg=4326)
     streets_4326.to_file(output_path, driver="GeoJSON")
     print(f"Bikeability index saved to {output_file}")
