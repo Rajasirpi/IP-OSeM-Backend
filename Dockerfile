@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y cron
 #     printf "*/5 * * * * /usr/local/bin/python /app/manage.py fetch_bike_data ms >> /proc/1/fd/1 2>&1\n" >> /etc/cron.d/fetch_bike_data && \
 #     printf "*/8 * * * * /usr/local/bin/python /app/manage.py fetch_bike_data os >> /proc/1/fd/1 2>&1\n" >> /etc/cron.d/fetch_bike_data
 
-RUN echo "0 */2 * * * bash -c '/usr/local/bin/python /app/manage.py fetch_bike_data ms && /usr/local/bin/python /app/manage.py fetch_bike_data os' >> /proc/1/fd/1 2>&1\n" >> /etc/cron.d/fetch_bike_data
+RUN echo "0 */6 * * * bash -c '/usr/local/bin/python /app/manage.py fetch_bike_data ms && /usr/local/bin/python /app/manage.py fetch_bike_data os' >> /proc/1/fd/1 2>&1\n" >> /etc/cron.d/fetch_bike_data
 
 # # Copy the crontab file if you want to create a custom setup
 # RUN echo "*/5 * * * * root /usr/local/bin/python /app/manage.py fetch_bike_data ms" >> /etc/cron.d/fetch_bike_data
