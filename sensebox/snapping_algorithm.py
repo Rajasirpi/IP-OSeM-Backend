@@ -113,13 +113,13 @@ def process_sensor_file(sensor_file, streets, street_index):
     if "ms_Surface_Anomaly" in sensor_file and "value" in points.columns:
         points.loc[points["value"] > 1.5, "value"] = 1.5
     # breakpoint()
-    # Extract date and month from timestamp
-    if "timestamp" in points.columns:
-        points["date"] = pd.to_datetime(points["timestamp"]).dt.date
-        points["month"] = pd.to_datetime(points["timestamp"]).dt.month
+    # # Extract date and month from timestamp
+    # if "timestamp" in points.columns:
+    #     points["date"] = pd.to_datetime(points["timestamp"]).dt.date
+    #     points["month"] = pd.to_datetime(points["timestamp"]).dt.month
 
-        # Filter for October, November, and December
-        points = points[points["month"].isin([10, 11, 12])]
+    #     # Filter for October, November, and December
+    #     points = points[points["month"].isin([10, 11, 12])]
 
     # Convert GeoSeries to list for multiprocessing
     points_list = points.geometry.tolist()

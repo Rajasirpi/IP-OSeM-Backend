@@ -542,7 +542,7 @@ def bikeability_trackwise(city):
         data["month"] = pd.to_datetime(data["timestamp"]).dt.month
 
         # Filter for October, November, and December
-        data = data[data["month"].isin([10, 11, 12])]
+        # data = data[data["month"].isin([10, 11, 12])]
         
         # Normalize the 'value' column within each date and box_id group
         data["value_normalized"] = data.groupby(["box_id", "date"])["value"].transform(
@@ -593,7 +593,7 @@ def bikeability_trackwise(city):
     routes["month"] = pd.to_datetime(routes["date"]).dt.month
 
     # Filter routes data for October, November, and December
-    routes = routes[routes["month"].isin([10, 11, 12])]
+    # routes = routes[routes["month"].isin([10, 11, 12])]
 
     # Merge the bikeability factor score with routes based on box_id and date
     routes = routes.merge(
