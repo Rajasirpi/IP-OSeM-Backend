@@ -16,6 +16,7 @@ from shapely.ops import nearest_points
 from shapely.strtree import STRtree
 import multiprocessing as mp
 import numpy as np
+import geobuf
 
 def homepage(request):
     return render(request, 'homepage.html')  # Render an HTML template
@@ -149,7 +150,7 @@ def split_linestring_by_day(features,id):
 
 
 def preprocessing_tracks(city):
-    # if request.method == 'GET': 
+    # if request.method == 'GET':
     data = TracksTable.objects.filter(city = city)
     count = data.count()
     print(f"Number of tracks for {city}: {count}")
@@ -194,6 +195,15 @@ def preprocessing_tracks(city):
     # with open(tracks_path, 'w') as geojson_file:
     #     json.dump(feature_collection, geojson_file, indent=2)
     filtered_gdf.to_file(tracks_path, driver="GeoJSON")
+    #save as geobuf
+    tracks_path+=".pbf"
+    filtered_geojson = filtered_gdf.to_json()
+    filtered_geojson = json.loads(filtered_geojson)
+    pbf = geobuf.encode(filtered_geojson)
+
+    with open(tracks_path, "wb") as out_file:
+        out_file.write(pbf)
+
     print ("Data processed successfully. Check the tracks folder for the processed data.")
     return JsonResponse({"status": "Data processed successfully. Check the tracks folder for the processed data."})
 
@@ -366,6 +376,14 @@ def preprocessing_sensors(city):
         #     json.dump(feature_collection, geojson_file, indent=4)
         #     print(f"File created: {tracks_path}")
         filtered_gdf.to_file(tracks_path, driver="GeoJSON")
+        #save as geobuf
+        tracks_path+=".pbf"
+        filtered_geojson = filtered_gdf.to_json()
+        filtered_geojson = json.loads(filtered_geojson)
+        pbf = geobuf.encode(filtered_geojson)
+
+        with open(tracks_path, "wb") as out_file:
+            out_file.write(pbf)
 
     print ("sensor Data processed successfully check the sensor data folder in local for the processed data")
     return JsonResponse ({"status": "sensor Data processed successfully check the sensor data folder in local for the processed data"})
@@ -612,7 +630,16 @@ def bikeability_trackwise(city):
     output_path = os.path.join(base_path, output_file)
 
     routes.to_file(output_path, driver="GeoJSON")
-    
+
+    #save as geobuf
+    output_path+=".pbf"
+    routes_geojson = routes.to_json()
+    routes_geojson = json.loads(routes_geojson)
+    pbf = geobuf.encode(routes_geojson)
+
+    with open(output_path, "wb") as out_file:
+        out_file.write(pbf)
+
     routes["date"] = routes["date"].astype(str)
     # Convert GeoDataFrame to JSON string
     # routes_json_str = routes.to_json()
@@ -826,6 +853,7 @@ def calculate_bikeability(city,  weights=None):
 
     # Set bikeability_index to NaN for rows where all sensor values were missing
     streets.loc[all_null_rows, "bikeability_index"] = None
+    #streets = streets.dropna(subset=["bikeability_index"])
 
     # Compute bikeability index, ignoring NaN values
     # weighted_sum = []
@@ -855,12 +883,23 @@ def calculate_bikeability(city,  weights=None):
     simplified = streets_4326.copy()
     simplified["geometry"] = simplified["geometry"].simplify(tolerance=0.0001, preserve_topology=True)
     simplified.to_file(output_path, driver="GeoJSON")
+
+    #save as geobuf
+    output_path+=".pbf"
+    simplified_geojson = simplified.to_json()
+    simplified_geojson = json.loads(simplified_geojson)
+    pbf = geobuf.encode(simplified_geojson)
+
+    with open(output_path, "wb") as out_file:
+        out_file.write(pbf)
+
     # geojson_str = streets_4326.to_json()
     geojson_str = simplified.to_json()
     geojson_dict = json.loads(geojson_str)
 
     # return JsonResponse ({ "message": f"OSM_BI Analysis successful, check for {output_file} in the  BI folder in tracks directory"})
-    return JsonResponse(geojson_dict, safe=False)
+    return HttpResponse(pbf, content_type='application/x-protobuf')
+    #return JsonResponse(geojson_dict, safe=False)
 
 # Run for 'ms' city using the pre-processed file
 # streets_with_bikeability = calculate_bikeability("ms")
