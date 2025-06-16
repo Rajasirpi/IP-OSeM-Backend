@@ -901,9 +901,9 @@ def calculate_bikeability(city,  weights=None):
         os.remove(output_path)
     # Save the final result
     # output_file = f"bikeability_{city}_winter_zeros_changed_weights.geojson"
-    # streets = streets.dropna(subset=["bikeability_index"])
+    streets = streets.dropna(subset=["bikeability_index"])
     streets_4326 = streets.to_crs(epsg=4326)
-    streets_4326.to_file(output_path, driver="GeoJSON")
+    # streets_4326.to_file(output_path, driver="GeoJSON")
     print(f"Bikeability index saved to {output_file}")
     simplified = streets_4326.copy()
     simplified["geometry"] = simplified["geometry"].simplify(tolerance=0.0001, preserve_topology=True)
