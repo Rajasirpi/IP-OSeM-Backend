@@ -97,21 +97,21 @@ def process_sensor_file(sensor_file, streets, street_index):
     if "ms_Overtaking_Distance" in sensor_file and "value" in points.columns:
         points.loc[points["value"] == 400, "value"] = 0
     if "ms_Finedust_PM2_5" in sensor_file and "value" in points.columns:
-        points.loc[points["value"] > 100, "value"] = 125
+        points.loc[points["value"] > 180, "value"] = 180
     if "ms_Finedust_PM4" in sensor_file and "value" in points.columns:
-        points.loc[points["value"] > 100, "value"] = 125
+        points.loc[points["value"] > 180, "value"] = 180
     if "ms_Finedust_PM1" in sensor_file and "value" in points.columns:
-        points.loc[points["value"] > 100, "value"] = 125
+        points.loc[points["value"] > 180, "value"] = 180
     if "ms_Finedust_PM10" in sensor_file and "value" in points.columns:
-        points.loc[points["value"] > 100, "value"] = 125
-    if "ms_Rel__Humidity" in sensor_file and "value" in points.columns:
-        points.loc[points["value"] > 93, "value"] = 93
+        points.loc[points["value"] > 180, "value"] = 180
+    # if "ms_Rel__Humidity" in sensor_file and "value" in points.columns:
+    #     points.loc[points["value"] > 93, "value"] = 93
     if "ms_Speed" in sensor_file and "value" in points.columns:
-        points.loc[points["value"] > 25, "value"] = 25
-    if "ms_Temperature" in sensor_file and "value" in points.columns:
-        points.loc[points["value"] > 25, "value"] = 25
-    if "ms_Surface_Anomaly" in sensor_file and "value" in points.columns:
-        points.loc[points["value"] > 1.5, "value"] = 1.5
+        points.loc[points["value"] > 60, "value"] = 60
+    # if "ms_Temperature" in sensor_file and "value" in points.columns:
+    #     points.loc[points["value"] > 25, "value"] = 25
+    # if "ms_Surface_Anomaly" in sensor_file and "value" in points.columns:
+    #     points.loc[points["value"] > 1.5, "value"] = 1.5
     # breakpoint()
     # # Extract date and month from timestamp
     # if "timestamp" in points.columns:

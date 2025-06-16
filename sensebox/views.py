@@ -758,7 +758,7 @@ normalization_config = {
     "Finedust_PM4": {"type": "linear_cost", "min": 0, "max": 40},
     "Finedust_PM10": {"type": "linear_cost", "min": 0, "max": 50},   # WHO: ≤45 24h
     "Surface_Anomaly": {"type": "linear_cost", "min": 0, "max": 10},  # ISO: >10 mm = rough
-    "Overtaking_Distance": {"type": "linear_benefit", "min": 1.0, "max": 2.0},  # ≥1.5m is ideal
+    "Overtaking_Distance": {"type": "linear_benefit", "min": 100, "max": 200},  # ≥1.5m is ideal
     "Temperature": {"type": "triangular", "min": 10, "opt": 22, "max": 30},     # comfort zone
     "Rel__Humidity": {"type": "triangular", "min": 20, "opt": 50, "max": 70},   # comfort 40–60%
     "Speed": {"type": "linear_cost", "min": 10, "max": 50},  # <30 ideal, >50 dangerous
