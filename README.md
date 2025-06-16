@@ -1,6 +1,6 @@
 # IP-OSeM-Backend
 
-This project is a backend implementation for processing bike tracks and sensor data from the OpenSenseMap API. The system supports data retrieval, storage, and preprocessing for specific cities.
+This project is a backend implementation for processing bike tracks and sensor data from the OpenSenseMap API. The system supports data retrieval, storage, and preprocessing for specific cities. The frontend for this project is available here (https://github.com/sitcomlab/iip-dash_2).
 
 ---
 
