@@ -752,6 +752,50 @@ def normalize(series, invert=False):
     norm = (series - series.min()) / (series.max() - series.min())  # Formula 1
     return 1 - norm if invert else norm  # Formula 2 if invert=True
 
+normalization_config = {
+    "Finedust_PM1": {"type": "linear_cost", "min": 0, "max": 25},
+    "Finedust_PM2_5": {"type": "linear_cost", "min": 0, "max": 25},  # WHO: ≤15 24h, ≤5 annual
+    "Finedust_PM4": {"type": "linear_cost", "min": 0, "max": 40},
+    "Finedust_PM10": {"type": "linear_cost", "min": 0, "max": 50},   # WHO: ≤45 24h
+    "Surface_Anomaly": {"type": "linear_cost", "min": 0, "max": 10},  # ISO: >10 mm = rough
+    "Overtaking_Distance": {"type": "linear_benefit", "min": 1.0, "max": 2.0},  # ≥1.5m is ideal
+    "Temperature": {"type": "triangular", "min": 10, "opt": 22, "max": 30},     # comfort zone
+    "Rel__Humidity": {"type": "triangular", "min": 20, "opt": 50, "max": 70},   # comfort 40–60%
+    "Speed": {"type": "linear_cost", "min": 10, "max": 50},  # <30 ideal, >50 dangerous
+}
+
+def normalize_semantic(series, sensor_name, config):
+    if series.isnull().all():
+        return series  # Return as is if all values are missing
+
+    params = config.get(sensor_name)
+    if not params:
+        print(f"No config found for sensor: {sensor_name}")
+        return series
+    # breakpoint()
+    s = series.copy()
+    typ = params["type"]
+
+    if typ == "linear_benefit":
+        # higher = better
+        norm = (s - params["min"]) / (params["max"] - params["min"])
+        print(sensor_name,typ)
+    elif typ == "linear_cost":
+        # lower = better
+        norm = (params["max"] - s) / (params["max"] - params["min"])
+        print(sensor_name,typ)
+    elif typ == "triangular":
+        min_val, opt_val, max_val = params["min"], params["opt"], params["max"]
+        norm = s.apply(lambda x: 0 if x <= min_val or x >= max_val else
+                       (x - min_val) / (opt_val - min_val) if x <= opt_val else
+                       (max_val - x) / (max_val - opt_val))
+        print(sensor_name,typ)
+    else:
+        raise ValueError(f"Unknown normalization type for {sensor_name}")
+
+    return norm.clip(0, 1)
+
+
 def calculate_bikeability(city,  weights=None):
     """
     Calculates bikeability index for streets using existing processed data.
@@ -808,14 +852,23 @@ def calculate_bikeability(city,  weights=None):
         streets.loc[~all_null_rows & streets[sensor].isnull(), sensor] = 0
 
     
-    # Normalize relevant columns
+    # # Normalize relevant columns
+    # for sensor_name in weights.keys():
+    #     if f'avg_{city}_'+ sensor_name in streets.columns:
+    #         # breakpoint()
+    #         streets[sensor_name + "_normalized"] = normalize(streets[f'avg_{city}_'+ sensor_name],invert=False)
+    #         # print(streets[sensor_name + "_normalized"])
+    #     else:
+    #         print(f"Warning: {sensor_name} column missing in streets data.")
+
     for sensor_name in weights.keys():
-        if f'avg_{city}_'+ sensor_name in streets.columns:
-            # breakpoint()
-            streets[sensor_name + "_normalized"] = normalize(streets[f'avg_{city}_'+ sensor_name],invert=False)
-            # print(streets[sensor_name + "_normalized"])
+        column_name = f'avg_{city}_' + sensor_name
+        if column_name in streets.columns:
+            norm_col = sensor_name + "_normalized"
+            streets[norm_col] = normalize_semantic(streets[column_name], sensor_name, normalization_config)
         else:
             print(f"Warning: {sensor_name} column missing in streets data.")
+
 
     # breakpoint()
     # Compute weighted sum for bikeability index
@@ -850,7 +903,7 @@ def calculate_bikeability(city,  weights=None):
     # output_file = f"bikeability_{city}_winter_zeros_changed_weights.geojson"
     # streets = streets.dropna(subset=["bikeability_index"])
     streets_4326 = streets.to_crs(epsg=4326)
-    # streets_4326.to_file(output_path, driver="GeoJSON")
+    streets_4326.to_file(output_path, driver="GeoJSON")
     print(f"Bikeability index saved to {output_file}")
     simplified = streets_4326.copy()
     simplified["geometry"] = simplified["geometry"].simplify(tolerance=0.0001, preserve_topology=True)
