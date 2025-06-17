@@ -88,9 +88,26 @@ def process_sensor_file(sensor_file, streets, street_index):
     print(f"Processing {sensor_file}...")
     sensor_name = sensor_file.split("/")[-1].replace(".geojson", "") 
 
-    # Load points
-    points = gpd.read_file(sensor_file).to_crs(streets.crs)
-
+    # Load points with basic validation and repair
+    try:
+        points = gpd.read_file(sensor_file).to_crs(streets.crs)
+    except Exception as e:
+        print(f"Error reading {sensor_file}: {e}")
+        # Attempt minimal repair by checking file end
+        try:
+            with open(sensor_file, 'r', encoding='utf-8') as f:
+                raw = f.read()
+            if not raw.strip().endswith('}'):
+                raw += '}'
+                with open(sensor_file, 'w', encoding='utf-8') as f:
+                    f.write(raw)
+                print(f"Appended missing closing brace to {sensor_file}, retrying read...")
+                points = gpd.read_file(sensor_file).to_crs(streets.crs)
+            else:
+                raise e
+        except Exception as e2:
+            print(f"Failed to repair and read {sensor_file}: {e2}")
+            return streets  # Return streets unchanged on failure
     # Remove invalid geometries
     points = points[points.geometry.notnull() & points.geometry.apply(lambda g: isinstance(g, Point))]
     # Check if the file is "ms_Overtaking_Distance" and replace 400 with 0
@@ -178,9 +195,18 @@ def process_city(city):
     
     city_info = city_data[city]
     sensor_files = city_info["sensor_files"]
+    osm_path = city_data[city]["osm_file"]
 
-    # Load streets file
-    streets = gpd.read_file(city_info["osm_file"]).to_crs(epsg=32637)
+    # Check if file exists; fallback if not
+    if not os.path.exists(osm_path):
+        fallback_path = osm_path.replace("./tracks/", "./app/tracks/")
+        if os.path.exists(fallback_path):
+            osm_path = fallback_path
+        else:
+            raise FileNotFoundError(f"OSM file not found at {osm_path} or fallback {fallback_path}")
+
+    # Now read the file
+    streets = gpd.read_file(osm_path).to_crs(epsg=32637)
     streets = streets.explode(index_parts=False)
     streets = streets[streets.geometry.type == "LineString"]
     # Ensure it has the correct geometry type
