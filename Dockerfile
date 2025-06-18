@@ -11,8 +11,15 @@ COPY . /app/
 
 EXPOSE 8000
 
-# Install cron in the container
-RUN apt-get update && apt-get install -y cron
+# Install cron and other requirements in the container
+RUN apt-get update && apt-get install -y \
+    cron \
+    libexpat1 \
+    gdal-bin \
+    libgdal-dev \
+    libproj-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 
 
 # # Create the cron job file with proper formatting
