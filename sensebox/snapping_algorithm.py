@@ -6,11 +6,12 @@ import os
 import geopandas as gpd
 import pandas as pd
 import plotly.express as px
-from shapely.geometry import Point, LineString
+from shapely.geometry import Point, LineString, shape
 from shapely.ops import nearest_points
 from shapely.strtree import STRtree
 import multiprocessing as mp
 import numpy as np
+import fiona
 
 city_data = {
     "ms": {
@@ -88,26 +89,39 @@ def process_sensor_file(sensor_file, streets, street_index):
     print(f"Processing {sensor_file}...")
     sensor_name = sensor_file.split("/")[-1].replace(".geojson", "") 
 
-    # Load points with basic validation and repair
-    try:
-        points = gpd.read_file(sensor_file).to_crs(streets.crs)
-    except Exception as e:
-        print(f"Error reading {sensor_file}: {e}")
-        # Attempt minimal repair by checking file end
+    points = None
+    file_size = os.path.getsize(sensor_file)
+
+    if file_size > 50 * 1024 * 1024:  # If file > 100MB, use Fiona
+        print(f"Large file detected ({file_size / (1024*1024):.2f} MB). Using Fiona to stream data...")
+        points_all = []
         try:
-            with open(sensor_file, 'r', encoding='utf-8') as f:
-                raw = f.read()
-            if not raw.strip().endswith('}'):
-                raw += '}'
-                with open(sensor_file, 'w', encoding='utf-8') as f:
-                    f.write(raw)
-                print(f"Appended missing closing brace to {sensor_file}, retrying read...")
-                points = gpd.read_file(sensor_file).to_crs(streets.crs)
-            else:
-                raise e
-        except Exception as e2:
-            print(f"Failed to repair and read {sensor_file}: {e2}")
-            return streets  # Return streets unchanged on failure
+            with fiona.open(sensor_file, 'r') as src:
+                for feature in src:
+                    geom = shape(feature["geometry"])
+                    if not isinstance(geom, Point):
+                        continue
+                    props = feature["properties"]
+                    props["geometry"] = geom
+                    points_all.append(props)
+        except Exception as e:
+            print(f"Fiona failed to read {sensor_file}: {e}")
+            return streets
+
+        if not points_all:
+            print(f"No valid points found in {sensor_file}")
+            return streets
+
+        points = gpd.GeoDataFrame(points_all, geometry="geometry", crs=streets.crs)
+
+    else:
+        print(f"File size is {file_size / (1024*1024):.2f} MB. Using GeoPandas to read normally.")
+        try:
+            points = gpd.read_file(sensor_file).to_crs(streets.crs)
+        except Exception as e:
+            print(f"GeoPandas failed to read {sensor_file}: {e}")
+            return streets
+        
     # Remove invalid geometries
     points = points[points.geometry.notnull() & points.geometry.apply(lambda g: isinstance(g, Point))]
     # Check if the file is "ms_Overtaking_Distance" and replace 400 with 0
