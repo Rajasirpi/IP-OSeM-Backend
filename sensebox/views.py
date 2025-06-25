@@ -365,6 +365,9 @@ def preprocessing_sensors(city):
         # with open(tracks_path, 'w') as geojson_file:
         #     json.dump(feature_collection, geojson_file, indent=4)
         #     print(f"File created: {tracks_path}")
+        filtered_gdf = filtered_gdf[filtered_gdf.is_valid]
+        filtered_gdf = filtered_gdf[~filtered_gdf.geometry.is_empty]
+        filtered_gdf = filtered_gdf.dropna(subset=["geometry"])
         filtered_gdf.to_file(tracks_path, driver="GeoJSON")
 
     print ("sensor Data processed successfully check the sensor data folder in local for the processed data")

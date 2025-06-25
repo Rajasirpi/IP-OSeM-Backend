@@ -51,5 +51,8 @@ RUN touch /var/log/cron.log
 # # Run cron in the foreground
 # CMD ["cron", "-f"]
 # CMD ["/bin/bash", "-c", "/usr/local/bin/python /app/manage.py fetch_bike_data ms && /usr/local/bin/python /app/manage.py fetch_bike_data os && cron -f"]
-CMD ["/bin/bash", "-c", "echo '>>> Starting ms fetch...' && /usr/local/bin/python /app/manage.py fetch_bike_data ms && echo '>>> Starting os fetch...' && /usr/local/bin/python /app/manage.py fetch_bike_data os && echo '>>> Starting cron...' && cron -f"]
+# CMD ["/bin/bash", "-c", "echo '>>> Starting ms fetch...' && /usr/local/bin/python /app/manage.py fetch_bike_data ms && echo '>>> Starting os fetch...' && /usr/local/bin/python /app/manage.py fetch_bike_data os && echo '>>> Starting cron...' && cron -f"]
 
+COPY ./start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+CMD ["bash", "/app/start.sh"]
