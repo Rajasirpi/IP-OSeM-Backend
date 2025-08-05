@@ -5,13 +5,16 @@ from django.views.decorators.csrf import csrf_exempt
 import os
 import geopandas as gpd
 import pandas as pd
-import plotly.express as px
 from shapely.geometry import Point, LineString, shape
 from shapely.ops import nearest_points
 from shapely.strtree import STRtree
-import multiprocessing as mp
+# import multiprocessing as mp
 import numpy as np
-import fiona
+# import fiona
+from uuid import uuid5, NAMESPACE_URL
+from shapely import wkt
+import json
+
 
 city_data = {
     "ms": {
@@ -22,9 +25,10 @@ city_data = {
             "./tracks/sensor_data/ms_Finedust_PM1.geojson",
             "./tracks/sensor_data/ms_Overtaking_Distance.geojson",
             "./tracks/sensor_data/ms_Rel__Humidity.geojson",
-            "./tracks/sensor_data/ms_Surface_Anomaly.geojson",
+            # "./tracks/sensor_data/ms_Surface_Anomaly.geojson",
             "./tracks/sensor_data/ms_Temperature.geojson",
             "./tracks/sensor_data/ms_Speed.geojson",
+            "./tracks/ms_accidents.geojson"
         ],
         "osm_file": "./tracks/BI_MS.geojson",
     },
@@ -36,9 +40,10 @@ city_data = {
             "./tracks/sensor_data/os_Finedust_PM1.geojson",
             "./tracks/sensor_data/os_Overtaking_Distance.geojson",
             "./tracks/sensor_data/os_Rel__Humidity.geojson",
-            "./tracks/sensor_data/os_Surface_Anomaly.geojson",
+            # "./tracks/sensor_data/os_Surface_Anomaly.geojson",
             "./tracks/sensor_data/os_Temperature.geojson",
             "./tracks/sensor_data/os_Speed.geojson",
+            "./tracks/os_accidents.geojson",
         ],
         "osm_file": "./tracks/BI_OS.geojson"
     }
@@ -54,6 +59,20 @@ city_data = {
 #     if isinstance(nearest_geom, LineString):
 #         return nearest_points(point, nearest_geom)[1]  # Nearest point on line
 #     return point  # Return original if invalid
+
+def compute_point_uid(geom, tag=None, value=None):
+    """Generates a stable UUIDv5 using normalized WKT + tag + value."""
+
+    geom_str = geom.wkt if isinstance(geom, Point) else str(geom)
+
+    tag_str = str(tag).strip() if tag is not None else ""
+    try:
+        value_str = f"{float(value):.4f}" if value is not None else ""
+    except Exception:
+        value_str = str(value).strip()
+
+    uid_input = f"{geom_str}_{tag_str}_{value_str}"
+    return str(uuid5(NAMESPACE_URL, uid_input))
 
 def snap_to_nearest_line(point, streets, street_index):
     # ref:https://medium.com/data-science/connecting-pois-to-a-road-network-358a81447944
@@ -200,77 +219,143 @@ def snap_batch(points_chunk, streets, street_index):
 
 #     return streets
 
-def process_chunk(chunk,  streets, street_index):
-        snapped = snap_batch(chunk.geometry.tolist(), streets, street_index)
-        snapped = [g if isinstance(g, Point) else None for g in snapped]
-        chunk = chunk.drop(columns=["geometry"], errors="ignore")
-        chunk["geometry"] = snapped
-        chunk = chunk.dropna(subset=["geometry"])
-        return chunk
 
-def process_sensor_file(sensor_file, streets, street_index):
+def process_sensor_file(city, sensor_file, streets, street_index):
     print(f"Processing {sensor_file}...")
-    sensor_name = os.path.basename(sensor_file).replace(".geojson", "")
-    file_size = os.path.getsize(sensor_file)
-    file_mb = file_size / (1024 * 1024)
 
-    # Read GeoJSON file
+    sensor_name = os.path.basename(sensor_file).replace(".geojson", "")
+    is_accident = "accidents" in sensor_name.lower()
+    cache_path = f"./tracks/cache/snapping_map_{sensor_name}.csv"
+    os.makedirs("./tracks/cache", exist_ok=True)
+
+    # === Load raw GeoJSON ===
     try:
-        points = gpd.read_file(sensor_file).to_crs(streets.crs)
+        with open(sensor_file) as f:
+            data = json.load(f)
+        features = data.get("features", [])
+        if not features:
+            raise ValueError(f"No features in {sensor_file}")
+        points = gpd.GeoDataFrame.from_features(features)
+        points = points.set_crs("EPSG:4326").to_crs(streets.crs)
     except Exception as e:
-        print(f"Error reading {sensor_file}: {e}")
+        print(f"Error loading {sensor_file}: {e}")
         return streets
 
-    # Filter invalid geometries
+    # === Clean invalid geometries ===
     points = points[points.geometry.notnull() & points.geometry.apply(lambda g: isinstance(g, Point))]
 
-    # Sensor-specific cleanup
-    if "ms_Overtaking_Distance" in sensor_file:
-        points.loc[points["value"] == 400, "value"] = 0
-    if "Finedust" in sensor_file:
-        points.loc[points["value"] > 180, "value"] = 180
-    if "ms_Speed" in sensor_file:
-        points.loc[points["value"] > 60, "value"] = 60
-
-    # === Use multiprocessing only if file is larger than 40MB ===
-    if file_mb > 40:
-        print(f"File size is {file_mb:.2f} MB. Processing in chunks using multiprocessing...")
-
-        num_workers = max(1, mp.cpu_count() - 2)
-        chunk_size = max(1, len(points) // num_workers)
-        chunks = [points.iloc[i:i+chunk_size].copy() for i in range(0, len(points), chunk_size)]
-
-        with mp.Pool(processes=num_workers) as pool:
-            results = pool.starmap(process_chunk, [(chunk, streets, street_index) for chunk in chunks])
-
-        points = pd.concat(results, ignore_index=True)
-        points = gpd.GeoDataFrame(points, geometry="geometry", crs=streets.crs)
+     # === Special case for accidents ===
+    if is_accident:
+        # Map UKATEGORIE to weight
+        category_to_weight = {3: 0.15, 2: 0.35, 1: 0.5}
+        points["value"] = points["UKATEGORIE"].map(category_to_weight)
+        points = points.dropna(subset=["value"])
+        points["UKATEGORIE"] = points["UKATEGORIE"].astype(str).str.strip()
+        points["value"] = points["value"].astype(float)
+        # points["point_uid"] = points["point_uid"].astype(str).str.strip()
+        points["point_uid"] = points.apply(
+            lambda row: compute_point_uid(row.geometry, row["UKATEGORIE"], row["value"]),
+            axis=1
+        )
+        # print(points.geometry.iloc[0].wkt)
     else:
-        print(f"File size is {file_mb:.2f} MB. Processing normally without chunks...")
+        # Standard sensor handling
+        if "ms_Overtaking_Distance" in sensor_file:
+            points.loc[points["value"] == 400, "value"] = 0
+        if "Finedust" in sensor_file:
+            points.loc[points["value"] > 180, "value"] = 180
+        if "ms_Speed" in sensor_file:
+            points.loc[points["value"] > 60, "value"] = 60
 
-        snapped = snap_batch(points.geometry.tolist(), streets, street_index)
-        snapped = [g if isinstance(g, Point) else None for g in snapped]
-        points = points.drop(columns=["geometry"], errors="ignore")
-        points["geometry"] = snapped
-        points = points.dropna(subset=["geometry"])
-        points = gpd.GeoDataFrame(points, geometry="geometry", crs=streets.crs)
+        points = points.dropna(subset=["value"])
+        points["value"] = points["value"].astype(float)
+        if "timestamp" in points.columns:
+            points["timestamp"] = points["timestamp"].astype(str).str.strip()
+        # points["point_uid"] = points["point_uid"].astype(str).str.strip()
+        points["point_uid"] = points.apply(
+            lambda row: compute_point_uid(row.geometry, row.get("timestamp", ""), row["value"]),
+            axis=1
+        )
+   
+    # === Load cache if exists ===
+    if os.path.exists(cache_path):
+        cached_map = pd.read_csv(cache_path)
+        # Normalize cached point_uid to prevent mismatch
+        cached_map["point_uid"] = cached_map["point_uid"].astype(str).str.strip()
+        cached_map["geometry"] = cached_map["geometry_wkt"].apply(wkt.loads)
+        cached_map = gpd.GeoDataFrame(cached_map, geometry="geometry", crs=streets.crs)
+    else:
+        cached_map = gpd.GeoDataFrame(columns=["point_uid", "geometry", "index_right"], geometry="geometry", crs=streets.crs)
 
-    # Spatial join using buffered geometry
-    buffer_size = 1
-    streets["buffered_geom"] = streets.geometry.buffer(buffer_size)
-    joined = gpd.sjoin(points, streets.set_geometry("buffered_geom"), predicate="intersects")
+    # === Identify new points to snap ===
+    snapped_uids = set(cached_map["point_uid"])
+    new_points = points[~points["point_uid"].isin(snapped_uids)]
+    print(f"New points to snap: {len(new_points)} | Cached: {len(cached_map)}")
 
-    # Aggregate values
-    agg_data = joined.groupby("index_right").agg(
-        **{
-            f"list_{sensor_name}": ("value", list),
-            f"avg_{sensor_name}": ("value", "mean")
-        }
-    ).reset_index()
+    if not new_points.empty:
+        # Snap
+        snapped_geoms = snap_batch(new_points.geometry.tolist(), streets, street_index)
+        # Strictly keep only valid shapely Points
+        cleaned_geoms = []
+        for g in snapped_geoms:
+            if isinstance(g, Point):
+                cleaned_geoms.append(g)
+            else:
+                # print(f"Invalid geometry type: {type(g)} - {g}")
+                cleaned_geoms.append(None)
+        new_points = new_points.copy()
+        new_points["geometry"] = cleaned_geoms
+        new_points = new_points.dropna(subset=["geometry"])
+        new_points = gpd.GeoDataFrame(new_points, geometry="geometry", crs=streets.crs)
 
+        # Spatial join to find street segment
+        streets["buffered_geom"] = streets.geometry.buffer(1)
+        new_joined = gpd.sjoin(new_points, streets.set_geometry("buffered_geom"), predicate="intersects")
+        new_map = new_joined[["point_uid", "geometry", "index_right"]].copy()
+
+        # Combine + Save to cache (as CSV with WKT)
+        full_map = pd.concat([cached_map, new_map], ignore_index=True).drop_duplicates("point_uid")
+        full_map["geometry_wkt"] = full_map["geometry"].apply(lambda g: g.wkt)
+        full_map.drop(columns=["geometry"], inplace=True)
+        full_map.to_csv(cache_path, index=False)
+        print(f"Cache updated: {cache_path}")
+        # breakpoint()
+    else:
+        # Reload full cache
+        full_map = cached_map.copy()
+        full_map["geometry_wkt"] = full_map["geometry"].apply(lambda g: g.wkt)
+        full_map.drop(columns=["geometry"], inplace=True)
+
+    # === Merge points with snapped geometry and index
+    full_map["geometry"] = full_map["geometry_wkt"].apply(wkt.loads)
+    full_map = gpd.GeoDataFrame(full_map, geometry="geometry", crs=streets.crs)
+    merged_points = points.merge(full_map, on="point_uid", how="inner")
+    
+    # === Final aggregation
+    if "value" not in merged_points.columns:
+        print("No 'value' column found — skipping aggregation.")
+        return streets
+
+    # === Aggregate per street
+    if is_accident:
+        agg_data = merged_points.groupby("index_right").agg(
+            **{
+            f"list_{city}_accidents":("value", list),
+            f"sum_{city}_accidents": ("value", "sum")
+            }
+        ).reset_index()
+    else:
+        agg_data = merged_points.groupby("index_right").agg(
+            **{
+                f"list_{sensor_name}": ("value", list),
+                f"avg_{sensor_name}": ("value", "mean")
+            }
+        ).reset_index()
+
+    # === Merge into streets
     streets = streets.merge(agg_data, left_index=True, right_on="index_right", how="left")
-    streets.drop(columns=["buffered_geom", "index_right"], errors="ignore", inplace=True)
-
+    streets.drop(columns=["index_right", "buffered_geom"], errors="ignore", inplace=True)
+    
     return streets
 
 def process_city(city):
@@ -319,6 +404,10 @@ def process_city(city):
     for sensor_file in city_data[city]["sensor_files"]:
         sensor_name = os.path.basename(sensor_file).replace(".geojson", "")
         keep_columns.extend([f"list_{sensor_name}", f"avg_{sensor_name}"])
+    
+    # Only add accident sum once if it's present
+    if f"sum_{city}_accidents" in streets.columns:
+        keep_columns.append(f"sum_{city}_accidents")
 
     # Keep only relevant columns
     streets = streets[[col for col in keep_columns if col in streets.columns]]

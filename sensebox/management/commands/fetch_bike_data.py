@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from sensebox.utils import fetch_and_store_data
-from sensebox.views import preprocessing_tracks, preprocessing_sensors, bikeability_trackwise, calculate_bikeability, expand_weights
+from sensebox.views import preprocessing_tracks, preprocessing_sensors, bikeability_trackwise, calculate_bikeability, expand_weights, merge_cqi
 from sensebox.snapping_algorithm import process_city
 from datetime import datetime
 import asyncio
@@ -32,9 +32,9 @@ class Command(BaseCommand):
         for attempt in range(MAX_RETRIES):
             try:
                 weights = {
-                    "Safety": 0.222,
-                    "Infrastructure_quality": 0.111,
-                    "Environment_quality": 0.666
+                    "Safety": 0.4,
+                    "Infrastructure_quality": 0.5,
+                    "Environment_quality": 0.1
                 }
                 print((f"Fetching data for city:{city}!"))
                 asyncio.run(fetch_and_store_data(city))
@@ -49,6 +49,7 @@ class Command(BaseCommand):
                 bikeability_trackwise(city)
                 process_city(city) 
                 time.sleep(5)
+                merge_cqi(city, id_column='id', columns_to_add=None, column_rename_map=None)
                 weight = expand_weights(weights)
                 calculate_bikeability(city, weight)
                 # osm_segements_bikeability_index_view(city, weights)
