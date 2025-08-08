@@ -3,3 +3,4 @@ db.sqlite3
 tracks/BI
 tracks/sensor_data
 tracks/tracks
+tracks/cache
