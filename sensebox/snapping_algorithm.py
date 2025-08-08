@@ -392,7 +392,7 @@ def process_city(city):
     # breakpoint()
     # Process each sensor file
     for sensor_file in sensor_files:
-        streets = process_sensor_file(sensor_file, streets, street_index)
+        streets = process_sensor_file(city, sensor_file, streets, street_index)
 
     # Select final columns
     keep_columns = [
