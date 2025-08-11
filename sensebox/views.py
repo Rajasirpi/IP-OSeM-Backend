@@ -683,7 +683,7 @@ def calculate_bikeability(city,  weights=None):
     """
     Calculates bikeability index for streets using existing processed data.
     """
-    process_file = f"./tracks/BI/osm_streets_{city}_winter.geojson"
+    process_file = f"./tracks/BI/osm_streets_{city}.geojson"
   
     print('Calculates bikeability index for streets using existing processed data')
   
