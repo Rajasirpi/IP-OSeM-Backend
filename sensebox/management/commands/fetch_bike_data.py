@@ -45,7 +45,7 @@ class Command(BaseCommand):
                 self.stdout.write(msg)
                 time.sleep(5)
                 preprocessing_tracks(city) 
-                preprocessing_sensors(city)
+                preprocessing_sensors()
                 bikeability_trackwise(city)
                 process_city(city) 
                 time.sleep(5)

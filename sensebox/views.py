@@ -198,8 +198,125 @@ def preprocessing_tracks(city):
     return JsonResponse({"status": "Data processed successfully. Check the tracks folder for the processed data."})
 
 
-def preprocessing_sensors(city):
+# def preprocessing_sensors(city):
 
+#     SENSOR_TITLE_MAPPING = {
+#         "PM1": "Finedust PM1",
+#         "PM10": "Finedust PM10",
+#         "PM25": "Finedust PM2.5",
+#         "PM4": "Finedust PM4",
+#         "Finedust PM1": "Finedust PM1",
+#         "Finedust PM10": "Finedust PM10",
+#         "Finedust PM2.5": "Finedust PM2.5",
+#         "Finedust PM4": "Finedust PM4",
+#         "Temperature": "Temperature",
+#         "Rel. Humidity": "Rel. Humidity",
+#         "Overtaking Distance": "Overtaking Distance",
+#         "Surface Anomaly": "Surface Anomaly",
+#         "Speed": "Speed",
+#         "Geschwindigkeit":"Speed",
+#     }
+
+#     base_path = '/app/tracks/sensor_data' if os.path.exists('/app') else './tracks/sensor_data'
+#     os.makedirs(base_path, exist_ok=True)  # Ensure the directory exists
+
+#     # breakpoint()
+#     # Iterate over each city and sensor title
+#     # for city in cities:
+#     for sensor_title in set(SENSOR_TITLE_MAPPING.values()):
+#         # Fetch data filtered by city and sensor title
+#         mapped_titles = [title for title, mapped_title in SENSOR_TITLE_MAPPING.items() if mapped_title == sensor_title]
+#         sensor_data = SensorDataTable.objects.filter(city=city, sensor_title__in=mapped_titles)
+
+#         # sensor_data = SensorDataTable.objects.filter(city=city, sensor_title=sensor_title)
+#         count = sensor_data.count()
+#         print(f"Number of sensor data for '{sensor_title}' in '{city}': {count}")
+#         # breakpoint()
+#         feature_collection = {
+#             "type": "FeatureCollection",
+#             "features": []
+#         }
+#         seen_features = set()
+
+#         # Process each sensor data item
+#         for items in sensor_data:
+#             value = items.value
+#             s_id = items.sensor_id
+#             id = items.box_id
+#             if value:
+#                 for entry in value:
+#                     coordinates = tuple(entry["location"])  # Convert coordinates to a tuple for immutability
+#                     raw_value = float(entry["value"])
+#                     timestamp = entry["createdAt"]
+                    
+#                     # Detect the original sensor title
+#                     original_title = items.sensor_title
+
+#                     # Convert if it's "Geschwindigkeit"
+#                     if original_title == "Geschwindigkeit":
+#                         feature_value = raw_value / 3.6  # Convert km/h → m/s
+#                     else:
+#                         feature_value = raw_value  # Already in m/s
+
+#                     # Create a unique identifier for the feature
+#                     feature_id = (coordinates, feature_value, timestamp, s_id.sensor_id, id.box_id)
+
+#                     # Check if the feature is already added
+#                     if feature_id not in seen_features:
+#                         feature = {
+#                             "type": "Feature",
+#                             "geometry": {
+#                                 "type": "Point",
+#                                 "coordinates": coordinates
+#                             },
+#                             "properties": {
+#                                 "value": feature_value,
+#                                 "timestamp": timestamp,
+#                                 "sensor_id": s_id.sensor_id,
+#                                 "box_id": id.box_id
+#                             }
+#                         }
+
+#                         # Add the feature to the collection and mark it as seen
+#                         feature_collection["features"].append(feature)
+#                         seen_features.add(feature_id)
+
+#         # Skip writing empty GeoJSON files
+#         if not feature_collection["features"]:
+#             print(f"No valid data for '{sensor_title}' in '{city}'. Skipping.")
+#             continue
+
+#         # Define box_ids to remove based on the city
+#         if city == "ms":
+#             ids_to_remove = {"65451cd043923100076b517c","67828c858e3d6100086a9aa1", "657b28637db43500079d749d", "66aca2c7f5b1680007e89843", "661d00531a903a0008052b78", "67226c2549d0900007c78c78"}
+#         elif city == "os":
+#             ids_to_remove = {"67529ed438b76600076d6f18"}
+
+#         # Convert the feature collection into a GeoDataFrame
+#         gdf = gpd.GeoDataFrame.from_features(feature_collection["features"])
+
+#         # Ensure 'box_id' exists before filtering
+#         if "box_id" in gdf.columns:
+#             filtered_gdf = gdf[~gdf["box_id"].isin(ids_to_remove)]
+#         else:
+#             raise ValueError("box_id column not found in GeoJSON data.")
+            
+
+#         # Generate the GeoJSON file name
+#         safe_sensor_title = sensor_title.replace(" ", "_").replace(".", "_").replace("/", "_")
+#         geojson_filename = f"{city}_{safe_sensor_title}.geojson"
+#         tracks_path = os.path.join(base_path, geojson_filename)
+
+
+#         filtered_gdf = filtered_gdf[filtered_gdf.is_valid]
+#         filtered_gdf = filtered_gdf[~filtered_gdf.geometry.is_empty]
+#         filtered_gdf = filtered_gdf.dropna(subset=["geometry"])
+#         filtered_gdf.to_file(tracks_path, driver="GeoJSON")
+
+#     print ("sensor Data processed successfully check the sensor data folder in local for the processed data")
+#     return JsonResponse ({"status": "sensor Data processed successfully check the sensor data folder in local for the processed data"})
+
+def preprocessing_sensors():
     SENSOR_TITLE_MAPPING = {
         "PM1": "Finedust PM1",
         "PM10": "Finedust PM10",
@@ -214,108 +331,105 @@ def preprocessing_sensors(city):
         "Overtaking Distance": "Overtaking Distance",
         "Surface Anomaly": "Surface Anomaly",
         "Speed": "Speed",
-        "Geschwindigkeit":"Speed",
+        "Geschwindigkeit": "Speed",
     }
 
+    # City bounding boxes
+    BBOX = {
+        "ms": {"W": 7.50, "S": 51.87, "E": 7.75, "N": 52.02},
+        "os": {"W": 7.85, "S": 52.19, "E": 8.17, "N": 52.37},
+    }
+    
     base_path = '/app/tracks/sensor_data' if os.path.exists('/app') else './tracks/sensor_data'
-    os.makedirs(base_path, exist_ok=True)  # Ensure the directory exists
+    os.makedirs(base_path, exist_ok=True)
 
-    # breakpoint()
-    # Iterate over each city and sensor title
-    # for city in cities:
+    # Prepare containers: {city: {sensor_title: FeatureCollection}}
+    collections = {city: {} for city in BBOX.keys()}
+    seen_features = {city: set() for city in BBOX.keys()}
+
+    # Process all mapped sensor titles
     for sensor_title in set(SENSOR_TITLE_MAPPING.values()):
-        # Fetch data filtered by city and sensor title
-        mapped_titles = [title for title, mapped_title in SENSOR_TITLE_MAPPING.items() if mapped_title == sensor_title]
-        sensor_data = SensorDataTable.objects.filter(city=city, sensor_title__in=mapped_titles)
+        mapped_titles = [t for t, mapped in SENSOR_TITLE_MAPPING.items() if mapped == sensor_title]
+        sensor_data = SensorDataTable.objects.filter(sensor_title__in=mapped_titles)
 
-        # sensor_data = SensorDataTable.objects.filter(city=city, sensor_title=sensor_title)
-        count = sensor_data.count()
-        print(f"Number of sensor data for '{sensor_title}' in '{city}': {count}")
-        # breakpoint()
-        feature_collection = {
-            "type": "FeatureCollection",
-            "features": []
-        }
-        seen_features = set()
+        print(f"Processing '{sensor_title}', total records: {sensor_data.count()}")
 
-        # Process each sensor data item
         for items in sensor_data:
             value = items.value
             s_id = items.sensor_id
-            id = items.box_id
-            if value:
-                for entry in value:
-                    coordinates = tuple(entry["location"])  # Convert coordinates to a tuple for immutability
-                    raw_value = float(entry["value"])
-                    timestamp = entry["createdAt"]
-                    
-                    # Detect the original sensor title
-                    original_title = items.sensor_title
+            box = items.box_id
 
-                    # Convert if it's "Geschwindigkeit"
-                    if original_title == "Geschwindigkeit":
-                        feature_value = raw_value / 3.6  # Convert km/h → m/s
-                    else:
-                        feature_value = raw_value  # Already in m/s
+            if not value:
+                continue
 
-                    # Create a unique identifier for the feature
-                    feature_id = (coordinates, feature_value, timestamp, s_id.sensor_id, id.box_id)
+            for entry in value:
+                lon, lat = entry["location"]
+                timestamp = entry["createdAt"]
+                raw_value = float(entry["value"])
 
-                    # Check if the feature is already added
-                    if feature_id not in seen_features:
-                        feature = {
-                            "type": "Feature",
-                            "geometry": {
-                                "type": "Point",
-                                "coordinates": coordinates
-                            },
-                            "properties": {
-                                "value": feature_value,
-                                "timestamp": timestamp,
-                                "sensor_id": s_id.sensor_id,
-                                "box_id": id.box_id
-                            }
-                        }
+                # Detect the original sensor title
+                original_title = items.sensor_title
 
-                        # Add the feature to the collection and mark it as seen
-                        feature_collection["features"].append(feature)
-                        seen_features.add(feature_id)
+                # Convert Geschwindigkeit km/h → m/s
+                if original_title == "Geschwindigkeit":
+                    feature_value = raw_value / 3.6
+                else:
+                    feature_value = raw_value
 
-        # Skip writing empty GeoJSON files
-        if not feature_collection["features"]:
-            print(f"No valid data for '{sensor_title}' in '{city}'. Skipping.")
-            continue
+                # Assign city by bounding box
+                city_detected = None
+                for city, bbox in BBOX.items():
+                    if bbox["W"] <= lon <= bbox["E"] and bbox["S"] <= lat <= bbox["N"]:
+                        city_detected = city
+                        break
 
-        # Define box_ids to remove based on the city
-        if city == "ms":
-            ids_to_remove = {"65451cd043923100076b517c","67828c858e3d6100086a9aa1", "657b28637db43500079d749d", "66aca2c7f5b1680007e89843", "661d00531a903a0008052b78", "67226c2549d0900007c78c78"}
-        elif city == "os":
-            ids_to_remove = {"67529ed438b76600076d6f18"}
+                if not city_detected:
+                    continue  # skip points outside both cities
 
-        # Convert the feature collection into a GeoDataFrame
-        gdf = gpd.GeoDataFrame.from_features(feature_collection["features"])
+                feature_id = (lon, lat, feature_value, timestamp, s_id.sensor_id, box.box_id)
+                if feature_id in seen_features[city_detected]:
+                    continue
 
-        # Ensure 'box_id' exists before filtering
-        if "box_id" in gdf.columns:
-            filtered_gdf = gdf[~gdf["box_id"].isin(ids_to_remove)]
-        else:
-            raise ValueError("box_id column not found in GeoJSON data.")
-            
+                feature = {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": (lon, lat)},
+                    "properties": {
+                        "value": feature_value,
+                        "timestamp": timestamp,
+                        "sensor_id": s_id.sensor_id,
+                        "box_id": box.box_id,
+                    },
+                }
 
-        # Generate the GeoJSON file name
-        safe_sensor_title = sensor_title.replace(" ", "_").replace(".", "_").replace("/", "_")
-        geojson_filename = f"{city}_{safe_sensor_title}.geojson"
-        tracks_path = os.path.join(base_path, geojson_filename)
+                # Initialize per-sensor collections if missing
+                if sensor_title not in collections[city_detected]:
+                    collections[city_detected][sensor_title] = {
+                        "type": "FeatureCollection",
+                        "features": [],
+                    }
 
+                collections[city_detected][sensor_title]["features"].append(feature)
+                seen_features[city_detected].add(feature_id)
 
-        filtered_gdf = filtered_gdf[filtered_gdf.is_valid]
-        filtered_gdf = filtered_gdf[~filtered_gdf.geometry.is_empty]
-        filtered_gdf = filtered_gdf.dropna(subset=["geometry"])
-        filtered_gdf.to_file(tracks_path, driver="GeoJSON")
+    # Save files per city & sensor
+    for city, sensors in collections.items():
+        for sensor_title, feature_collection in sensors.items():
+            if not feature_collection["features"]:
+                print(f"No valid data for '{sensor_title}' in '{city}'. Skipping.")
+                continue
 
-    print ("sensor Data processed successfully check the sensor data folder in local for the processed data")
-    return JsonResponse ({"status": "sensor Data processed successfully check the sensor data folder in local for the processed data"})
+            gdf = gpd.GeoDataFrame.from_features(feature_collection["features"])
+            gdf = gdf[gdf.is_valid & ~gdf.geometry.is_empty].dropna(subset=["geometry"])
 
+            safe_sensor_title = sensor_title.replace(" ", "_").replace(".", "_").replace("/", "_")
+            geojson_filename = f"{city}_{safe_sensor_title}.geojson"
+            tracks_path = os.path.join(base_path, geojson_filename)
+
+            gdf.to_file(tracks_path, driver="GeoJSON")
+            print(f"Saved {tracks_path} with {len(gdf)} features")
+
+    print("Sensor data processed successfully. Check the sensor_data folder.")
+    return JsonResponse({"status": "Sensor data processed successfully. Check the sensor_data folder."})
 
 # Define sensor files and weights for each city
 city_data = {
