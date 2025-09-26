@@ -1,5 +1,5 @@
 import requests
-from sensebox.models import BoxTable, SensorTable, SensorDataTable, TracksTable
+from sensebox.models import BoxTable, SensorTable, SensorDataTable, TracksTable, BoxTableBackup, SensorTableBackup, SensorDataTableBackup, TracksTableBackup
 import json
 import os
 from django.db.models import Count
@@ -218,15 +218,78 @@ async def fetch(session, url):
         print(f"Request failed for {url}: {e}")
         return None
     
+# @sync_to_async
+# def delete_all_measurements(city, BoxTable, SensorTable, SensorDataTable, TracksTable):
+#     # Delete records with city column
+#     BoxTable.objects.filter(city=city).delete()
+    
+#     # Find box_ids associated with the specified city
+#     box_ids = BoxTable.objects.filter(city=city).values_list('box_id', flat=True)
+    
+#     # Delete from tables without city column based on box_ids
+#     SensorTable.objects.filter(box_id__in=box_ids).delete()
+#     SensorDataTable.objects.filter(box_id__in=box_ids).delete()
+#     TracksTable.objects.filter(box_id__in=box_ids).delete()
+
 @sync_to_async
-def delete_all_measurements(city, BoxTable, SensorTable, SensorDataTable, TracksTable):
-    # Delete records with city column
-    BoxTable.objects.filter(city=city).delete()
-    
-    # Find box_ids associated with the specified city
+def backup_and_delete_measurements(city, BoxTable, SensorTable, SensorDataTable, TracksTable,
+                                   BoxTableBackup, SensorTableBackup, SensorDataTableBackup, TracksTableBackup):
+    # Get box_ids to backup
     box_ids = BoxTable.objects.filter(city=city).values_list('box_id', flat=True)
-    
-    # Delete from tables without city column based on box_ids
+
+    # inorder to not overload with backups
+    BoxTableBackup.objects.filter(city=city).delete()
+    SensorTableBackup.objects.filter(box_id__in=box_ids).delete()
+    SensorDataTableBackup.objects.filter(box_id__in=box_ids).delete()
+    TracksTableBackup.objects.filter(box_id__in=box_ids).delete()
+
+    # Backup boxes
+    for box in BoxTable.objects.filter(city=city):
+        BoxTableBackup.objects.create(
+            box_id=box.box_id,
+            name=box.name,
+            city=box.city,
+            created_at=box.created_at,
+            updated_at=box.updated_at,
+            last_measurement_at=box.last_measurement_at,
+            coordinates=box.coordinates,
+        )
+    # breakpoint()
+    # Backup sensors
+    for sensor in SensorTable.objects.filter(box_id__in=box_ids):
+        SensorTableBackup.objects.create(
+            sensor_id=sensor.sensor_id,
+            box_id=sensor.box_id.box_id,   # 🔑 store ID, not FK object
+            sensor_title=sensor.sensor_title,
+            sensor_icon=sensor.sensor_icon,
+            sensor_unit=sensor.sensor_unit,
+            sensor_type=sensor.sensor_type,
+            sensor_value=sensor.sensor_value,
+            city=sensor.city,
+        )
+
+    # Backup sensor data
+    for data in SensorDataTable.objects.filter(box_id__in=box_ids):
+        SensorDataTableBackup.objects.create(
+            sensor_id=data.sensor_id.sensor_id,  # 🔑 store ID
+            box_id=data.box_id.box_id,           # 🔑 store ID
+            sensor_title=data.sensor_title,
+            timestamp=data.timestamp,
+            value=data.value,
+            city=data.city,
+        )
+
+    # Backup tracks
+    for track in TracksTable.objects.filter(box__box_id__in=box_ids):
+        TracksTableBackup.objects.create(
+            box_id=track.box.box_id,   # 🔑 use FK → box.box_id
+            timestamp=track.timestamp,
+            tracks=track.tracks,
+            city=track.city,
+        )
+
+    # Delete originals
+    BoxTable.objects.filter(city=city).delete()
     SensorTable.objects.filter(box_id__in=box_ids).delete()
     SensorDataTable.objects.filter(box_id__in=box_ids).delete()
     TracksTable.objects.filter(box_id__in=box_ids).delete()
@@ -291,7 +354,8 @@ async def fetch_and_store_data(city):
     # params = {"grouptag": "bike", "bbox": bbox_str}
     
     # Call delete_all_measurements for the specified city
-    await delete_all_measurements(city, BoxTable, SensorTable, SensorDataTable, TracksTable)
+    # await delete_all_measurements(city, BoxTable, SensorTable, SensorDataTable, TracksTable)
+    await backup_and_delete_measurements(city, BoxTable, SensorTable, SensorDataTable, TracksTable, BoxTableBackup, SensorTableBackup, SensorDataTableBackup, TracksTableBackup)
 
     base_url = f"https://api.opensensemap.org/boxes?grouptag=bike&bbox={bbox_str}"
     async with aiohttp.ClientSession() as session:

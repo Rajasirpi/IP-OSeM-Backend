@@ -56,3 +56,49 @@ class TracksTable(models.Model):
 
     def __str__(self):
         return f"Location for {self.box.name} at {self.timestamp}"
+
+
+# Backup Tables
+class BoxTableBackup(models.Model):
+    id = models.AutoField(primary_key=True)
+    box_id = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, null=True)
+    city = models.CharField(max_length=50)
+    created_at = models.DateTimeField(null=True)
+    updated_at = models.DateTimeField(null=True)
+    last_measurement_at = models.DateTimeField(null=True)
+    coordinates = models.JSONField(null=True)
+    archived_at = models.DateTimeField(auto_now_add=True)
+
+
+class SensorTableBackup(models.Model):
+    id = models.AutoField(primary_key=True)
+    sensor_id = models.CharField(max_length=100)
+    box_id = models.CharField(max_length=255)  # store just box_id, not FK
+    sensor_title = models.CharField(max_length=255)
+    sensor_icon = models.CharField(max_length=100, null=True, blank=True)
+    sensor_unit = models.CharField(max_length=50)
+    sensor_type = models.CharField(max_length=50)
+    sensor_value = models.FloatField(null=True, blank=True)
+    city = models.CharField(max_length=100, default='city')
+    archived_at = models.DateTimeField(auto_now_add=True)
+
+
+class SensorDataTableBackup(models.Model):
+    id = models.AutoField(primary_key=True)
+    sensor_id = models.CharField(max_length=100)  # store as string
+    box_id = models.CharField(max_length=255)
+    sensor_title = models.CharField(max_length=255)
+    timestamp = models.DateTimeField()
+    value = models.JSONField()
+    city = models.CharField(max_length=100, default='city')
+    archived_at = models.DateTimeField(auto_now_add=True)
+
+
+class TracksTableBackup(models.Model):
+    id = models.AutoField(primary_key=True)
+    box_id = models.CharField(max_length=255)  # just the ID
+    timestamp = models.DateTimeField()
+    tracks = models.JSONField()
+    city = models.CharField(max_length=255)
+    archived_at = models.DateTimeField(auto_now_add=True)
