@@ -368,10 +368,10 @@ def process_city(city):
     city_info = city_data[city]
     sensor_files = city_info["sensor_files"]
     osm_path = city_data[city]["osm_file"]
-
+    
     # Check if file exists; fallback if not
     if not os.path.exists(osm_path):
-        fallback_path = osm_path.replace("./tracks/", "./app/tracks/")
+        fallback_path = osm_path.replace("./tracks/", "/app/tracks/")
         if os.path.exists(fallback_path):
             osm_path = fallback_path
         else:
