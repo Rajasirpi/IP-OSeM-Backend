@@ -18,17 +18,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         city = kwargs['city']
-        # try:
-        #     print((f"Fetching data for city:{city}!"))
-        #     asyncio.run(fetch_and_store_data(city))
-        #     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        #     # print((f"[{timestamp}] Data fetched and saved successfully for city:{city}!"))
-        #     self.stdout.write(f"[{timestamp}] Data fetched and saved successfully for city:{city}!")
-        # except ValueError as err:
-        #     self.stdout.write(str(err))
-        # except Exception as err:
-        #     self.stdout.write(f"An error occurred: {err}")
-        
         for attempt in range(MAX_RETRIES):
             try:
                 weights = {
