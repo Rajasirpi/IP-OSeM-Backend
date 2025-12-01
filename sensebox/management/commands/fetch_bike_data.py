@@ -25,19 +25,19 @@ class Command(BaseCommand):
                     "infrastructure_quality": 0.5,
                     "environment_quality": 0.1
                 }
-                # print((f"Fetching data for city:{city}!"))
-                # asyncio.run(fetch_and_store_data(city))
-                # # async_to_sync(fetch_and_store_data)(city)
-                # timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                # msg = f"[{timestamp}] Data fetched and saved successfully for city:{city}!"
-                # # print(msg)
-                # self.stdout.write(msg)
-                # time.sleep(5)
-                # preprocessing_tracks(city) 
-                # preprocessing_sensors()
-                # bikeability_trackwise(city)
-                # process_city(city) 
-                # time.sleep(5)
+                print((f"Fetching data for city:{city}!"))
+                asyncio.run(fetch_and_store_data(city))
+                # async_to_sync(fetch_and_store_data)(city)
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                msg = f"[{timestamp}] Data fetched and saved successfully for city:{city}!"
+                # print(msg)
+                self.stdout.write(msg)
+                time.sleep(5)
+                preprocessing_tracks(city) 
+                preprocessing_sensors()
+                bikeability_trackwise(city)
+                process_city(city) 
+                time.sleep(5)
                 merge_cqi(city, id_column='id', columns_to_add=None, column_rename_map=None)
                 precompute_normalized_data(city)
                 # weight = expand_weights(weights)
