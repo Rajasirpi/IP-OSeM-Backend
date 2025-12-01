@@ -570,17 +570,17 @@ def normalize_semantic(series, sensor_name, config):
     if typ == "linear_benefit":
         # higher = better
         norm = (s - params["min"]) / (params["max"] - params["min"])
-        print(sensor_name,typ)
+        # print(sensor_name,typ)
     elif typ == "linear_cost":
         # lower = better
         norm = (params["max"] - s) / (params["max"] - params["min"])
-        print(sensor_name,typ)
+        # print(sensor_name,typ)
     elif typ == "triangular":
         min_val, opt_val, max_val = params["min"], params["opt"], params["max"]
         norm = s.apply(lambda x: 0 if x <= min_val or x >= max_val else
                        (x - min_val) / (opt_val - min_val) if x <= opt_val else
                        (max_val - x) / (max_val - opt_val))
-        print(sensor_name,typ)
+        # print(sensor_name,typ)
     else:
         raise ValueError(f"Unknown normalization type for {sensor_name}")
 
@@ -766,8 +766,8 @@ def calculate_bikeability(city, weights):
     # weights = {k.lower(): v for k, v in weights.items()}
     path = f"./tracks/BI/osm_normalized_{city}.geojson"
     streets = gpd.read_file(path)
-    print(weights)
-
+    # print(weights)
+    
     # Compute weighted sum directly
     # bikeability_sum = np.zeros(len(streets))
     # for sensor, weight in weights.items():
