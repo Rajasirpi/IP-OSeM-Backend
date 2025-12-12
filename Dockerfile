@@ -1,15 +1,8 @@
-FROM python:3.9-slim
+FROM python:trixie
 
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
-
-COPY requirements.txt /app/
-RUN pip install -r requirements.txt
-
-COPY . /app/
-
-EXPOSE 8000
 
 # Install cron and other requirements in the container
 RUN apt-get update && apt-get install -y \
@@ -18,9 +11,16 @@ RUN apt-get update && apt-get install -y \
     gdal-bin \
     libgdal-dev \
     libproj-dev \
+    libtbbmalloc2 \
+    libtbb-dev \
     && rm -rf /var/lib/apt/lists/*
 
+COPY requirements.txt /app/
+RUN pip install -r requirements.txt
 
+COPY . /app/
+
+EXPOSE 8000
 
 # # Create the cron job file with proper formatting
 # RUN echo "#!/bin/bash" > /etc/cron.d/fetch_bike_data && \
