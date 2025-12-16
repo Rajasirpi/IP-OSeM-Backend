@@ -16,6 +16,9 @@ from shapely.ops import nearest_points
 from shapely.strtree import STRtree
 import multiprocessing as mp
 import numpy as np
+import subprocess
+import urllib.request
+import time
 
 def homepage(request):
     return render(request, 'homepage.html')  # Render an HTML template
@@ -761,7 +764,6 @@ def precompute_normalized_data(city):
     print(f"Normalized data saved: {output_path}")
 
 def calculate_bikeability(city, weights):
-    import time
     start_time = time.time()
     # weights = {k.lower(): v for k, v in weights.items()}
     path = f"./tracks/BI/osm_normalized_{city}.geojson"
@@ -802,3 +804,79 @@ def calculate_bikeability(city, weights):
     # print(f"calculate_bikeability took {elapsed:.2f} seconds")
 
     return JsonResponse(geojson_dict, safe=False)
+
+# This method creates a traffic.csv file in the work folder of the routing engine to customize it
+# based on bikeability weights.
+def calculate_traffic(city, weights):
+    path = f"./tracks/BI/osm_normalized_{city}.geojson"
+    streets = gpd.read_file(path)
+
+    # Calculate bikeability score for each street segment
+    streets["bikeability_index"] = (
+        streets["safety_score"] * weights["safety"] +
+        streets["infrastructure_score"] * weights["infrastructure_quality"] +
+        streets["environment_score"] * weights["environment_quality"]
+    )
+    
+    # We have to rename and adapt the column containing the way id to match the data we have in ways.csv and cast
+    # way_id column to integer to merge against integer id column in ways csv
+    streets["way_id"]= streets["id"].str.replace('way/', '')
+    streets["way_id"]= streets["way_id"].astype(int)
+    
+    # Drop duplicate street segments (there should be only one bikeability score per street segment)
+    streets = streets.drop_duplicates(subset=['way_id'])
+    
+    # Read "ways.csv", a file that matches each way with start and end nodes, as this is the information the routing
+    # engine requires. Then merge the data with the bikeability index, so that we have a list of [start_node_id, end_node_id, bikeability_index]
+    ways_df = pd.read_csv('./sensebox/osrm/ways.csv')
+    merged_df = ways_df.merge(streets, on='way_id')
+
+    # Adapt the speed of edges to the bikeability index (0..100) by multiplying it with 25.
+    # For a street segment with bikeability 80 this returns a speed of 20km/h.
+    merged_df["speed"] = merged_df["bikeability_index"]*0.25
+
+    # Save the traffic.csv file
+    output_filename = './sensebox/osrm/work/traffic.csv'
+    output = merged_df[["first_node_id", "second_node_id", "speed"]].to_csv(output_filename, index=False, header=False)
+
+def route(request):
+    # Step 1: Parse Input
+    start_lon = request.GET.get('start_lon')
+    start_lat = request.GET.get('start_lat')
+    end_lon = request.GET.get('end_lon')
+    end_lat = request.GET.get('end_lat')
+    # We need to parse the weights to integers so that we can use them for the computation of the bikeability scores
+    infrastructure_score = int(request.GET.get('infrastructure_score', 40))
+    safety_score = int(request.GET.get('safety_score', 50))
+    environmental_score = int(request.GET.get('environmental_score', 10))
+    weights = {
+        "safety": safety_score,  # Corresponds to Safety
+        "infrastructure_quality": infrastructure_score,  # Corresponds to Infrastructure
+        "environment_quality": environmental_score # Corresponds to Environment
+    }
+
+    # Step 2: The following method computes and saves a traffic.csv file in the work folder
+    calculate_traffic('ms', weights)
+    
+    # Step 3: Customize OSRM so that the routing network incorporates the bikeability-infused edge speeds
+    subprocess.call(['./sensebox/osrm/osrm-customize','sensebox/osrm/work/smol.osrm', '--segment-speed-file=sensebox/osrm/work/traffic.csv'])
+
+    # Step 4: Run the routing engine as a running process
+    process = subprocess.Popen(['./sensebox/osrm/osrm-routed', '--algorithm=mld','sensebox/osrm/work/smol.osrm'])
+    url = f"http://localhost:5000/route/v1/driving/{str(start_lon)},{start_lat};{end_lon},{end_lat}?overview=full&steps=true&geometries=geojson"
+    # The two second timeout makes sure that the router will have loaded and is ready. TODO: Read stdout of the routing process
+    # and act immediately after it has loaded. Don't wait for a fixed time.
+    time.sleep(2)
+
+    # Step 5: Request the route from the routing engine by http request
+    contents = urllib.request.urlopen(url).read()
+    # Decode the response from OSRM (we expect a utf-8 encoded string containing json data)
+    output = contents.decode('utf-8')
+
+    # Step 6: Terminate the routing engine - this is important so that we can start a "clean" router with a differently
+    #         customized routing network on the next request.
+    process.terminate()
+
+    # Step 7: Return the response from the routing engine to the frontend. Note that we have to parse the string to a dict
+    #         to re-serialize it because JsonResponse expects a dict and not a string. TODO: This should be fixed.
+    return JsonResponse(json.loads(output), safe=False)

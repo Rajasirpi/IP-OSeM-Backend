@@ -8,4 +8,5 @@ urlpatterns = [
     path('sensordata/<str:city>/', views.preprocessing_sensors_view, name='preprocessing_sensors'),
     path('bikeability_trackwise/<str:city>/', views.bikeability_trackwise_view, name='bikeability_trackwise'),
     path('osm-bikeability-index/<str:city>/', views.osm_segements_bikeability_index_view, name='osm_bikeability_index'),
+    path('route/', views.route, name='route'),
 ]
