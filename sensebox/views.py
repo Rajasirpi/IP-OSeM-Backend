@@ -839,12 +839,17 @@ def calculate_traffic(city, weights):
     output_filename = './sensebox/osrm/work/traffic.csv'
     output = merged_df[["first_node_id", "second_node_id", "speed"]].to_csv(output_filename, index=False, header=False)
 
-def route(request):
+def route(request, coords):
     # Step 1: Parse Input
-    start_lon = request.GET.get('start_lon')
-    start_lat = request.GET.get('start_lat')
-    end_lon = request.GET.get('end_lon')
-    end_lat = request.GET.get('end_lat')
+    try:
+        start, end = coords.split(";")
+        start_lon, start_lat = start.split(",")
+        end_lon, end_lat = end.split(",")
+    except ValueError:
+        return JsonResponse(
+            {"code": "InvalidQuery", "message": "Invalid coordinate format"},
+            status=400
+        )
     # We need to parse the weights to integers so that we can use them for the computation of the bikeability scores
     infrastructure_score = int(request.GET.get('infrastructure_score', 40))
     safety_score = int(request.GET.get('safety_score', 50))
@@ -863,7 +868,7 @@ def route(request):
 
     # Step 4: Run the routing engine as a running process
     process = subprocess.Popen(['./sensebox/osrm/osrm-routed', '--algorithm=mld','sensebox/osrm/work/smol.osrm'])
-    url = f"http://localhost:5000/route/v1/driving/{str(start_lon)},{start_lat};{end_lon},{end_lat}?overview=full&steps=true&geometries=geojson"
+    url = f"http://localhost:5000/route/v1/driving/{str(start_lon)},{start_lat};{end_lon},{end_lat}?overview=full&steps=true"
     # The two second timeout makes sure that the router will have loaded and is ready. TODO: Read stdout of the routing process
     # and act immediately after it has loaded. Don't wait for a fixed time.
     time.sleep(2)
